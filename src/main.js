@@ -89,7 +89,7 @@ class App {
         this.scene.add(this.particleSystem.getMesh())
 
         // Sphere orchestrator (emotional state machine)
-        this.sphere = new Sphere(this.particleSystem, this.inputManager)
+        this.sphere = new Sphere(this.particleSystem, this.inputManager, this.camera)
         // this.sphere.setDebug(true)  // Uncomment for debug logging
 
         // Effect Conductor ("Living Chaos" system)

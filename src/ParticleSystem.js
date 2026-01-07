@@ -126,7 +126,17 @@ export class ParticleSystem {
         uGoosebumpsIntensity: { value: 0.0 }, // high-freq layer intensity (0→0.05)
         // Effect Conductor uniforms
         uDynamicSizeAmount: { value: 0.0 },   // pulsation intensity (0-1)
-        uSparkleIntensity: { value: 0.0 }     // sparkle brightness (0-1)
+        uSparkleIntensity: { value: 0.0 },     // sparkle brightness (0-1)
+        // Cursor proximity (Deep Interaction)
+        uCursorWorldPos: { value: new THREE.Vector3(0, 0, 10) },  // far away by default
+        uCursorInfluenceRadius: { value: 0.8 },   // ~50% of sphere radius
+        uCursorInfluenceStrength: { value: 0.0 }, // 0-1, glow intensity
+        uCursorAttractionStrength: { value: 0.0 }, // 0-1, pull toward cursor
+        // Ripple effect (poke reaction)
+        uRippleOrigin: { value: new THREE.Vector3(0, 0, 0) },
+        uRippleTime: { value: -1.0 },  // Negative = inactive
+        uRippleSpeed: { value: 3.0 },  // How fast ripple expands
+        uRippleDecay: { value: 2.0 }   // How fast ripple fades
       },
       vertexShader: `
         attribute float aType;
@@ -145,12 +155,22 @@ export class ParticleSystem {
         uniform float uNoiseSpeed;
         uniform float uGoosebumpsIntensity;
         uniform float uDynamicSizeAmount;
+        // Cursor proximity
+        uniform vec3 uCursorWorldPos;
+        uniform float uCursorInfluenceRadius;
+        uniform float uCursorAttractionStrength;
+        // Ripple effect
+        uniform vec3 uRippleOrigin;
+        uniform float uRippleTime;
+        uniform float uRippleSpeed;
+        uniform float uRippleDecay;
         
         varying float vType;
         varying float vSeed;
         varying float vBleedPhase;
         varying float vDepth;
         varying float vUnifiedCurve;
+        varying float vCursorInfluence;  // 0-1, proximity to cursor
         
         // ========== Simplex 3D Noise ==========
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -269,6 +289,31 @@ export class ParticleSystem {
             pos += dir * finalNoise;
           }
           
+          // ═══════════════════════════════════════════════════════════
+          // RIPPLE EFFECT (Poke reaction)
+          // ═══════════════════════════════════════════════════════════
+          if (uRippleTime >= 0.0 && aType < 1.5) {
+            vec3 dir = normalize(aOriginalPos);
+            
+            // Distance from ripple origin (on sphere surface)
+            float distFromOrigin = distance(aOriginalPos, uRippleOrigin);
+            
+            // Expanding ring: distance the ripple has traveled
+            float rippleRadius = uRippleTime * uRippleSpeed;
+            
+            // Ring width and falloff
+            float ringWidth = 0.4;
+            float ringDist = abs(distFromOrigin - rippleRadius);
+            float ringInfluence = 1.0 - smoothstep(0.0, ringWidth, ringDist);
+            
+            // Decay over time
+            float decay = exp(-uRippleTime * uRippleDecay);
+            
+            // Final ripple displacement: outward bump
+            float rippleDisp = ringInfluence * decay * 0.12;
+            pos += dir * rippleDisp;
+          }
+          
           // Evaporation: radial drift outward during fade-out
           if (aBleedPhase > 0.0 && aBleedPhase < uEvapFadeOutEnd) {
             float driftProgress = aBleedPhase / uEvapFadeOutEnd;
@@ -283,6 +328,33 @@ export class ParticleSystem {
               cos(uTime * 2.0 + aSeed * 10.0) * 0.02,
               0.0
             );
+          }
+          
+          // ═══════════════════════════════════════════════════════════
+          // CURSOR PROXIMITY: Attraction + Glow
+          // ═══════════════════════════════════════════════════════════
+          
+          // Calculate world position for cursor distance (apply mesh rotation)
+          vec4 worldPos4 = modelMatrix * vec4(pos, 1.0);
+          vec3 worldPos = worldPos4.xyz;
+          
+          // Distance to cursor in world space
+          float cursorDist = distance(worldPos, uCursorWorldPos);
+          
+          // Influence falloff: 1.0 at cursor, 0.0 at radius edge
+          // Using smoothstep for soft falloff
+          vCursorInfluence = 1.0 - smoothstep(0.0, uCursorInfluenceRadius, cursorDist);
+          
+          // Attraction: pull particles toward cursor position
+          if (uCursorAttractionStrength > 0.0 && vCursorInfluence > 0.0) {
+            // Direction from particle to cursor (in local space for proper rotation)
+            vec3 cursorLocal = (inverse(modelMatrix) * vec4(uCursorWorldPos, 1.0)).xyz;
+            vec3 toCursor = normalize(cursorLocal - pos);
+            
+            // Displacement scaled by influence and strength
+            // Max displacement ~0.15 units at full strength
+            float displacement = vCursorInfluence * uCursorAttractionStrength * 0.15;
+            pos += toCursor * displacement;
           }
           
           vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
@@ -307,6 +379,11 @@ export class ParticleSystem {
           
           gl_PointSize = baseSize;
           
+          // Cursor proximity: boost size slightly near cursor
+          if (vCursorInfluence > 0.0) {
+            gl_PointSize *= 1.0 + vCursorInfluence * 0.2;  // Max 20% bigger
+          }
+          
           // Dynamic Size: heartbeat-synced pulsation (80 bpm = 8.377 rad/s)
           if (uDynamicSizeAmount > 0.0) {
             float heartbeatPulse = sin(uTime * 8.377) * 0.5 + 0.5;
@@ -329,12 +406,14 @@ export class ParticleSystem {
         uniform float uEvapFadeOutEnd;
         uniform float uEvapFadeInStart;
         uniform float uSparkleIntensity;
+        uniform float uCursorInfluenceStrength;  // 0-1, master glow control
         
         varying float vType;
         varying float vSeed;
         varying float vBleedPhase;
         varying float vDepth;
         varying float vUnifiedCurve;
+        varying float vCursorInfluence;  // 0-1, per-particle proximity
         
         void main() {
           // Circular particle
@@ -356,6 +435,22 @@ export class ParticleSystem {
           alpha *= 0.65 + 0.35 * depthFade;
           
           vec3 color = uColorNormal * uColorTint;
+          
+          // ═══════════════════════════════════════════════════════════
+          // CURSOR PROXIMITY GLOW
+          // ═══════════════════════════════════════════════════════════
+          if (uCursorInfluenceStrength > 0.0 && vCursorInfluence > 0.0) {
+            float glowAmount = vCursorInfluence * uCursorInfluenceStrength;
+            
+            // Warm highlight color (soft pink-white)
+            vec3 glowColor = vec3(1.0, 0.85, 0.95);
+            
+            // Add glow to color (additive blend)
+            color += glowColor * glowAmount * 0.4;
+            
+            // Boost alpha for brighter particles near cursor
+            alpha = min(1.0, alpha + glowAmount * 0.35);
+          }
           
           // Evaporation fade-out: color dims to warm ember
           if (vBleedPhase > 0.0 && vBleedPhase < uEvapFadeOutEnd) {
@@ -615,6 +710,74 @@ export class ParticleSystem {
    */
   setResponseLag(lag) {
     this.responseLag = Math.max(0.1, Math.min(1, lag))
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // CURSOR PROXIMITY API (Deep Interaction)
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Set cursor position in world space (for proximity effects)
+   * @param {THREE.Vector3} worldPos - cursor position on sphere surface
+   */
+  setCursorWorldPos(worldPos) {
+    this.material.uniforms.uCursorWorldPos.value.copy(worldPos)
+  }
+
+  /**
+   * Set cursor influence strength (glow intensity)
+   * @param {number} strength - 0 (off) to 1 (full glow)
+   */
+  setCursorInfluence(strength) {
+    this.material.uniforms.uCursorInfluenceStrength.value = Math.max(0, Math.min(1, strength))
+  }
+
+  /**
+   * Set cursor attraction strength (pull toward cursor)
+   * @param {number} strength - 0 (off) to 1 (max attraction)
+   */
+  setCursorAttraction(strength) {
+    this.material.uniforms.uCursorAttractionStrength.value = Math.max(0, Math.min(1, strength))
+  }
+
+  /**
+   * Set cursor influence radius
+   * @param {number} radius - influence falloff radius in world units
+   */
+  setCursorInfluenceRadius(radius) {
+    this.material.uniforms.uCursorInfluenceRadius.value = radius
+  }
+
+  /**
+   * Trigger a ripple effect from a point on the sphere
+   * @param {THREE.Vector3} origin - point on sphere surface (local space)
+   */
+  triggerRipple(origin) {
+    this.material.uniforms.uRippleOrigin.value.copy(origin)
+    this.material.uniforms.uRippleTime.value = 0.0  // Start ripple timer
+  }
+
+  /**
+   * Update ripple animation
+   * @param {number} delta - time delta
+   */
+  updateRipple(delta) {
+    const rippleTime = this.material.uniforms.uRippleTime.value
+    if (rippleTime >= 0) {
+      this.material.uniforms.uRippleTime.value += delta
+      // Deactivate after 2 seconds
+      if (this.material.uniforms.uRippleTime.value > 2.0) {
+        this.material.uniforms.uRippleTime.value = -1.0
+      }
+    }
+  }
+
+  /**
+   * Set noise amount (for stroke calming effect)
+   * @param {number} amount - noise amplitude
+   */
+  setNoiseAmount(amount) {
+    this.material.uniforms.uNoiseAmount.value = Math.max(0, amount)
   }
 
   /**

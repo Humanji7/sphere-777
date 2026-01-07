@@ -5,6 +5,8 @@
  * PEACE → LISTENING → TENSION → BLEEDING → TRAUMA → HEALING
  */
 
+import * as THREE from 'three'
+
 // Emotional phases
 export const PHASE = {
     PEACE: 'peace',           // Baseline breathing
@@ -16,9 +18,10 @@ export const PHASE = {
 }
 
 export class Sphere {
-    constructor(particleSystem, inputManager) {
+    constructor(particleSystem, inputManager, camera) {
         this.particles = particleSystem
         this.input = inputManager
+        this.camera = camera  // Needed for cursor raycast
 
         // Current state
         this.currentPhase = PHASE.PEACE
@@ -63,6 +66,32 @@ export class Sphere {
         // Smoothed color progress (prevents jumpy color changes)
         this.currentColorProgress = 0
         this.colorSmoothingSpeed = 0.4   // Higher = faster response, tune for feel (lowered for slower transitions)
+
+        // ═══════════════════════════════════════════════════════════
+        // CURSOR PROXIMITY (Deep Interaction)
+        // ═══════════════════════════════════════════════════════════
+        this.raycaster = new THREE.Raycaster()
+        this.cursorWorldPos = new THREE.Vector3(0, 0, 10)  // Far away default
+        this.sphereBounds = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1.5)  // Match baseRadius
+        this.cursorOnSphere = false  // Is cursor intersecting sphere?
+        this.cursorInfluenceSmoothed = 0  // Smoothed influence for gradual fade
+
+        // ═══════════════════════════════════════════════════════════
+        // GESTURE REACTIONS (Stage 6)
+        // ═══════════════════════════════════════════════════════════
+        this.gestureReaction = {
+            strokeCalm: 0,          // 0-1, accumulated calming from strokes
+            pokeStartle: 0,         // 0-1, spike from poke (decays fast)
+            orbitSync: 0,           // 0-1, breathing sync with orbit
+            trembleNervous: 0       // 0-1, accumulated nervousness
+        }
+
+        // Ripple effect state (poke reaction)
+        this.ripple = {
+            active: false,
+            origin: new THREE.Vector3(),
+            startTime: 0
+        }
 
         // Debug
         this.DEBUG = false
@@ -361,8 +390,167 @@ export class Sphere {
             this.particles.returnToOrigin()
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // CURSOR PROXIMITY EFFECT (Deep Interaction)
+        // ═══════════════════════════════════════════════════════════
+        this._updateCursorProximity(delta, inputState)
+
+        // ═══════════════════════════════════════════════════════════
+        // GESTURE REACTIONS (Stage 6)
+        // ═══════════════════════════════════════════════════════════
+        this._processGesture(delta, inputState)
+
         // Update particles
         this.particles.update(delta, this.particles.material.uniforms.uTime.value + delta)
+    }
+
+    /**
+     * Calculate cursor world position and apply proximity effects
+     */
+    _updateCursorProximity(delta, inputState) {
+        const { position, isActive } = inputState
+
+        // Target influence: 1.0 if active and on sphere, 0.0 otherwise
+        let targetInfluence = 0
+
+        if (isActive && this.camera) {
+            // Create ray from camera through cursor
+            const cursorNDC = new THREE.Vector2(position.x, position.y)
+            this.raycaster.setFromCamera(cursorNDC, this.camera)
+
+            // Intersect with sphere bounds
+            const intersection = new THREE.Vector3()
+            const ray = this.raycaster.ray
+
+            if (ray.intersectSphere(this.sphereBounds, intersection)) {
+                // Cursor is pointing at sphere - update world position
+                this.cursorWorldPos.copy(intersection)
+                this.cursorOnSphere = true
+                targetInfluence = 1.0
+            } else {
+                // Cursor not on sphere - move influence point far away
+                this.cursorOnSphere = false
+            }
+        }
+
+        // Smooth the influence for gradual fade in/out
+        const smoothSpeed = targetInfluence > this.cursorInfluenceSmoothed ? 8.0 : 3.0  // Faster fade in
+        this.cursorInfluenceSmoothed += (targetInfluence - this.cursorInfluenceSmoothed) *
+            (1 - Math.exp(-smoothSpeed * delta))
+
+        // Apply to particle system
+        this.particles.setCursorWorldPos(this.cursorWorldPos)
+        this.particles.setCursorInfluence(this.cursorInfluenceSmoothed)
+
+        // Attraction: stronger when moving slowly (stroke), weaker when fast
+        const attractionBase = this.cursorInfluenceSmoothed * 0.7
+        const velocityDamping = Math.max(0, 1 - inputState.velocity * 3)  // Less attraction at high speed
+        this.particles.setCursorAttraction(attractionBase * velocityDamping)
+    }
+
+    /**
+     * Process gesture-based emotional reactions
+     * Maps gesture intent to sphere behavior
+     */
+    _processGesture(delta, inputState) {
+        const { gestureType, angularVelocity, directionalConsistency } = inputState
+        const reaction = this.gestureReaction
+
+        // ═══════════════════════════════════════════════════════════
+        // DECAY: All reactions fade over time
+        // ═══════════════════════════════════════════════════════════
+        reaction.strokeCalm = Math.max(0, reaction.strokeCalm - delta * 0.3)
+        reaction.pokeStartle = Math.max(0, reaction.pokeStartle - delta * 2.0)  // Fast decay
+        reaction.orbitSync = Math.max(0, reaction.orbitSync - delta * 0.4)
+        reaction.trembleNervous = Math.max(0, reaction.trembleNervous - delta * 0.5)
+
+        // ═══════════════════════════════════════════════════════════
+        // GESTURE REACTIONS
+        // ═══════════════════════════════════════════════════════════
+        switch (gestureType) {
+            case 'stroke':
+                // CALMING: reduce tension, deepen breathing, press particles inward
+                reaction.strokeCalm = Math.min(1, reaction.strokeCalm + delta * 0.8)
+
+                // Slower, deeper breathing
+                this.targetBreathSpeed = this.baseBreathSpeed * (0.7 - reaction.strokeCalm * 0.2)
+
+                // Reduce tension actively
+                this.tensionTime = Math.max(0, this.tensionTime - delta * 2)
+
+                // Press particles closer to sphere (reduce noise displacement)
+                const baseNoise = 0.08
+                const pressedNoise = baseNoise * (1 - reaction.strokeCalm * 0.5)
+                this.particles.setNoiseAmount(pressedNoise)
+                break
+
+            case 'poke':
+                // STARTLE: instant tension spike, goosebumps burst, trigger ripple
+                if (reaction.pokeStartle < 0.1) {
+                    // Only trigger once per poke
+                    reaction.pokeStartle = 1.0
+
+                    // Instant tension spike
+                    this.tensionTime = Math.min(0.5, this.tensionTime + 0.3)
+
+                    // Trigger ripple from cursor position
+                    if (this.cursorOnSphere) {
+                        // Convert world pos to local (undo mesh rotation)
+                        const localOrigin = this.cursorWorldPos.clone()
+                            .applyMatrix4(this.particles.mesh.matrixWorld.clone().invert())
+                        this.particles.triggerRipple(localOrigin)
+                    }
+                }
+                break
+
+            case 'orbit':
+                // HYPNOSIS (INVERSE): slow orbit = slow breathing, fast = faster
+                reaction.orbitSync = Math.min(1, reaction.orbitSync + delta * 0.5)
+
+                // Inverse relationship: slower orbit = calmer
+                const orbitSpeed = Math.abs(angularVelocity)
+                // Low orbit speed (< 1.5) -> breathing slows to 0.5x
+                // High orbit speed (> 3.0) -> breathing rises to 1.2x
+                const orbitBreathMultiplier = 0.5 + Math.min(orbitSpeed, 3.0) * 0.23
+                this.targetBreathSpeed = this.baseBreathSpeed * orbitBreathMultiplier
+                break
+
+            case 'tremble':
+                // NERVOUS: goosebumps max, quicker breathing
+                reaction.trembleNervous = Math.min(1, reaction.trembleNervous + delta * 1.5)
+
+                // Accelerate breathing
+                this.targetBreathSpeed = this.baseBreathSpeed * (1.3 + reaction.trembleNervous * 0.4)
+
+                // Increase tension (can lead to bleeding)
+                this.tensionTime = Math.min(0.4, this.tensionTime + delta * 0.5)
+                break
+
+            default:
+                // Reset noise amount when not stroking
+                if (reaction.strokeCalm < 0.01) {
+                    this.particles.setNoiseAmount(0.08)  // Base value
+                }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // APPLY GESTURE EFFECTS TO GOOSEBUMPS
+        // ═══════════════════════════════════════════════════════════
+        const gestureGoosebumps =
+            reaction.pokeStartle * 0.08 +   // Poke = burst
+            reaction.trembleNervous * 0.06   // Tremble = sustained
+
+        // Blend with existing tension-based goosebumps
+        const currentTensionGoosebumps = this.particles.material.uniforms.uGoosebumpsIntensity.value
+        const maxGestureContribution = Math.min(0.1, gestureGoosebumps)
+
+        // Take the max of tension-based or gesture-based
+        const targetGoosebumps = Math.max(currentTensionGoosebumps, maxGestureContribution)
+        this.particles.material.uniforms.uGoosebumpsIntensity.value =
+            currentTensionGoosebumps + (targetGoosebumps - currentTensionGoosebumps) * 0.15
+
+        // Update ripple animation
+        this.particles.updateRipple(delta)
     }
 
     // Public API
