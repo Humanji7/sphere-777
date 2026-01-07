@@ -46,8 +46,12 @@ class App {
         // Input manager
         this.inputManager = new InputManager(this.canvas)
 
+        // Adaptive particle count for mobile
+        const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
+        const particleCount = isMobile ? 2000 : 5000
+
         // Particle system
-        this.particleSystem = new ParticleSystem(2500, 0.03)
+        this.particleSystem = new ParticleSystem(particleCount, 0.03)
         this.scene.add(this.particleSystem.getMesh())
 
         // Sphere orchestrator (emotional state machine)
