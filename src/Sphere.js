@@ -68,6 +68,16 @@ export class Sphere {
         this.colorSmoothingSpeed = 0.4   // Higher = faster response, tune for feel (lowered for slower transitions)
 
         // ═══════════════════════════════════════════════════════════
+        // DYNAMIC PARTICLE SIZE (tension-based density)
+        // ═══════════════════════════════════════════════════════════
+        this.currentSize = 6.0           // Current interpolated size
+        this.sizeConfig = {
+            baseSize: 6.0,               // Peace state ("breathing freely")
+            maxSizeBoost: 1.5,           // +1.5 at full tension (totalMax = 7.5)
+            sizeSmoothSpeed: 2.0         // Smoothing speed
+        }
+
+        // ═══════════════════════════════════════════════════════════
         // CURSOR PROXIMITY (Deep Interaction)
         // ═══════════════════════════════════════════════════════════
         this.raycaster = new THREE.Raycaster()
@@ -93,8 +103,19 @@ export class Sphere {
             startTime: 0
         }
 
+        // Sound Manager (set via setSoundManager after user interaction)
+        this.soundManager = null
+
         // Debug
         this.DEBUG = false
+    }
+
+    /**
+     * Set the sound manager (called after user interaction)
+     * @param {SoundManager} sm - The sound manager instance
+     */
+    setSoundManager(sm) {
+        this.soundManager = sm
     }
 
     update(delta, elapsed) {
@@ -380,6 +401,22 @@ export class Sphere {
         this.currentColorProgress += (targetColorProgress - this.currentColorProgress) * lerpFactor
         this.particles.setColorProgress(this.currentColorProgress)
 
+        // ═══════════════════════════════════════════════════════════
+        // DYNAMIC uSIZE: Particles "contract" with tension
+        // Philosophy: sphere "breathes freely" in peace, "contracts" under stress
+        // ═══════════════════════════════════════════════════════════
+        const { baseSize, maxSizeBoost, sizeSmoothSpeed } = this.sizeConfig
+        const targetSize = baseSize + this.currentColorProgress * maxSizeBoost
+
+        // Stroke gesture accelerates return to base size
+        const strokeBoost = this.gestureReaction.strokeCalm * 2.0  // 2x faster when calming
+        const effectiveSmoothSpeed = sizeSmoothSpeed + strokeBoost
+
+        // Exponential smoothing
+        const sizeLerpFactor = 1 - Math.exp(-effectiveSmoothSpeed * delta)
+        this.currentSize += (targetSize - this.currentSize) * sizeLerpFactor
+        this.particles.material.uniforms.uSize.value = this.currentSize
+
         // Apply rolling based on input (with trauma-adjusted response)
         if (isActive && this.currentPhase !== PHASE.LISTENING) {
             const delta = inputState.delta || { x: 0, y: 0 }
@@ -453,8 +490,11 @@ export class Sphere {
      * Maps gesture intent to sphere behavior
      */
     _processGesture(delta, inputState) {
-        const { gestureType, angularVelocity, directionalConsistency } = inputState
+        const { gestureType, angularVelocity, directionalConsistency, touchIntensity = 0 } = inputState
         const reaction = this.gestureReaction
+
+        // Touch intensity modifier: 1.0 for mouse, 1.0-2.0 for touch based on pressure
+        const intensityModifier = 1.0 + touchIntensity * 1.0
 
         // ═══════════════════════════════════════════════════════════
         // DECAY: All reactions fade over time
@@ -490,8 +530,8 @@ export class Sphere {
                     // Only trigger once per poke
                     reaction.pokeStartle = 1.0
 
-                    // Instant tension spike
-                    this.tensionTime = Math.min(0.5, this.tensionTime + 0.3)
+                    // Instant tension spike (boosted by touch intensity)
+                    this.tensionTime = Math.min(0.5, this.tensionTime + 0.3 * intensityModifier)
 
                     // Trigger ripple from cursor position
                     if (this.cursorOnSphere) {
@@ -516,14 +556,14 @@ export class Sphere {
                 break
 
             case 'tremble':
-                // NERVOUS: goosebumps max, quicker breathing
-                reaction.trembleNervous = Math.min(1, reaction.trembleNervous + delta * 1.5)
+                // NERVOUS: goosebumps max, quicker breathing (boosted by touch intensity)
+                reaction.trembleNervous = Math.min(1, reaction.trembleNervous + delta * 1.5 * intensityModifier)
 
                 // Accelerate breathing
                 this.targetBreathSpeed = this.baseBreathSpeed * (1.3 + reaction.trembleNervous * 0.4)
 
-                // Increase tension (can lead to bleeding)
-                this.tensionTime = Math.min(0.4, this.tensionTime + delta * 0.5)
+                // Increase tension (can lead to bleeding) - also boosted
+                this.tensionTime = Math.min(0.4, this.tensionTime + delta * 0.5 * intensityModifier)
                 break
 
             default:
@@ -548,6 +588,41 @@ export class Sphere {
         const targetGoosebumps = Math.max(currentTensionGoosebumps, maxGestureContribution)
         this.particles.material.uniforms.uGoosebumpsIntensity.value =
             currentTensionGoosebumps + (targetGoosebumps - currentTensionGoosebumps) * 0.15
+
+        // ═══════════════════════════════════════════════════════════
+        // SOUND INTEGRATION
+        // ═══════════════════════════════════════════════════════════
+        if (this.soundManager) {
+            // Ambient hum tracks emotional tension
+            this.soundManager.setAmbientIntensity(this.currentColorProgress)
+
+            // Gesture-specific sounds
+            switch (gestureType) {
+                case 'stroke':
+                    // Play soft chime when actively stroking
+                    if (reaction.strokeCalm > 0.2) {
+                        this.soundManager.playGestureSound('stroke', reaction.strokeCalm)
+                    }
+                    break
+                case 'poke':
+                    // Sharp click on startle
+                    if (reaction.pokeStartle > 0.8) {
+                        this.soundManager.playGestureSound('poke', intensityModifier)
+                    }
+                    break
+                case 'tremble':
+                    // Granular nervousness
+                    if (reaction.trembleNervous > 0.3) {
+                        this.soundManager.playGestureSound('tremble', reaction.trembleNervous)
+                    }
+                    break
+            }
+
+            // Bleeding sound when evaporating
+            if (this.currentPhase === 'bleeding') {
+                this.soundManager.triggerBleeding(this.currentColorProgress)
+            }
+        }
 
         // Update ripple animation
         this.particles.updateRipple(delta)

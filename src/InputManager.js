@@ -38,6 +38,13 @@ export class InputManager {
         this.isTouching = false
 
         // ═══════════════════════════════════════════════════════════
+        // TOUCH PRESSURE & RADIUS (Mobile emotional intensity)
+        // ═══════════════════════════════════════════════════════════
+        this.touchRadius = 0       // Normalized contact area (0-1)
+        this.touchPressure = 0     // iOS Force Touch (0-1)
+        this.touchIntensity = 0    // Combined intensity modifier (0-1)
+
+        // ═══════════════════════════════════════════════════════════
         // GESTURE RECOGNITION
         // ═══════════════════════════════════════════════════════════
 
@@ -107,28 +114,60 @@ export class InputManager {
 
     _onTouchStart(e) {
         e.preventDefault()
+        // Only track primary touch (ignore multi-touch)
+        if (e.touches.length !== 1) return
+
         this.isTouching = true
         this.isActive = true
-        if (e.touches.length > 0) {
-            const touch = e.touches[0]
-            const coords = this._normalizeCoords(touch.clientX, touch.clientY)
-            this.position.x = coords.x
-            this.position.y = coords.y
-        }
+
+        const touch = e.touches[0]
+        const coords = this._normalizeCoords(touch.clientX, touch.clientY)
+        this.position.x = coords.x
+        this.position.y = coords.y
+
+        // Capture touch radius/pressure
+        this._updateTouchMetrics(touch)
     }
 
     _onTouchMove(e) {
         e.preventDefault()
-        if (e.touches.length > 0) {
-            const touch = e.touches[0]
-            const coords = this._normalizeCoords(touch.clientX, touch.clientY)
-            this.position.x = coords.x
-            this.position.y = coords.y
-        }
+        // Only track primary touch
+        if (e.touches.length !== 1) return
+
+        const touch = e.touches[0]
+        const coords = this._normalizeCoords(touch.clientX, touch.clientY)
+        this.position.x = coords.x
+        this.position.y = coords.y
+
+        // Update touch radius/pressure
+        this._updateTouchMetrics(touch)
+    }
+
+    /**
+     * Extract touch radius and pressure as emotional intensity modifiers
+     * @param {Touch} touch - The Touch object from the event
+     */
+    _updateTouchMetrics(touch) {
+        // radiusX/radiusY: contact ellipse (pixels, varies by device)
+        // Normalize to ~0-1 range (50px = full finger)
+        const avgRadius = ((touch.radiusX || 0) + (touch.radiusY || 0)) / 2
+        this.touchRadius = Math.min(avgRadius / 50, 1)
+
+        // force: iOS Force Touch / 3D Touch (0-1)
+        this.touchPressure = touch.force || 0
+
+        // Combined intensity: prefer force if available, otherwise use radius
+        this.touchIntensity = this.touchPressure > 0
+            ? this.touchPressure
+            : this.touchRadius
     }
 
     _onTouchEnd() {
         this.isTouching = false
+        // Decay touch metrics smoothly
+        this.touchRadius = 0
+        this.touchPressure = 0
+        this.touchIntensity = 0
         // Keep isActive true for a bit after touch ends
     }
 
@@ -303,12 +342,18 @@ export class InputManager {
             isFrantic: this.franticTime > this.FRANTIC_DURATION,
             isActive: this.isActive,
             justStopped: this.justStopped,
+            isTouching: this.isTouching,
 
-            // Gesture recognition (NEW)
+            // Gesture recognition
             direction: { ...this.smoothedDirection },
             directionalConsistency: this.directionalConsistency,
             angularVelocity: this.angularVelocity,
-            gestureType: this.currentGesture
+            gestureType: this.currentGesture,
+
+            // Touch metrics (mobile emotional intensity)
+            touchRadius: this.touchRadius,
+            touchPressure: this.touchPressure,
+            touchIntensity: this.touchIntensity
         }
     }
 

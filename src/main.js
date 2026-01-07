@@ -9,6 +9,7 @@ import { InputManager } from './InputManager.js'
 import { ParticleSystem } from './ParticleSystem.js'
 import { Sphere } from './Sphere.js'
 import { EffectConductor } from './EffectConductor.js'
+import { SoundManager } from './SoundManager.js'
 
 /**
  * Main application entry point
@@ -113,8 +114,9 @@ class App {
         this.isStarted = true
         this.clickToStart.classList.add('hidden')
 
-        // Audio would be initialized here
-        // this.audioManager = new AudioManager()
+        // Initialize audio after user interaction (respects autoplay policy)
+        this.soundManager = new SoundManager()
+        this.sphere.setSoundManager(this.soundManager)
     }
 
     _onResize() {

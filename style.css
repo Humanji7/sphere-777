@@ -4,12 +4,14 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   width: 100%;
   height: 100%;
   overflow: hidden;
   background: #000;
-  touch-action: none; /* Prevent scroll/zoom on mobile */
+  touch-action: none;
+  /* Prevent scroll/zoom on mobile */
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
@@ -25,6 +27,8 @@ html, body {
   width: 100%;
   height: 100%;
   display: block;
+  touch-action: none;
+  /* Prevent browser gestures on canvas */
 }
 
 #click-to-start {
@@ -57,6 +61,13 @@ html, body {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
