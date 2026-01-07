@@ -1,0 +1,62 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  touch-action: none; /* Prevent scroll/zoom on mobile */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+#canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#click-to-start {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 10;
+  cursor: pointer;
+  transition: opacity 0.5s ease;
+}
+
+#click-to-start.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#click-to-start span {
+  color: #2D1B4E;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: clamp(1rem, 4vw, 1.5rem);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
