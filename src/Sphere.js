@@ -60,6 +60,10 @@ export class Sphere {
         this.currentBreathSpeed = 0.8
         this.targetBreathSpeed = 0.8
 
+        // Smoothed color progress (prevents jumpy color changes)
+        this.currentColorProgress = 0
+        this.colorSmoothingSpeed = 0.4   // Higher = faster response, tune for feel (lowered for slower transitions)
+
         // Debug
         this.DEBUG = false
     }
@@ -305,24 +309,53 @@ export class Sphere {
                 break
 
             case PHASE.TENSION:
-                // Color dimming + hue shift to cooler
-                this.particles.setColorTint(0.6)
-                this.particles.setColorHue(-0.08)
-                this.particles.setPauseFactor(0)
-                break
-
             case PHASE.BLEEDING:
-                // Intense, back to normal color for contrast with lime
-                this.particles.setColorTint(1.0)
+                // No instant color changes - handled below with gradient
                 this.particles.setPauseFactor(0)
+
+                // === GOOSEBUMPS: Surface noise intensification ===
+                // When tense/bleeding, the sphere's surface becomes "prickly"
+                // Noise amount: 0.08 (calm) → 0.15 (tense)
+                // Noise speed: 0.3 (calm) → 0.9 (tense)
+                const tensionIntensity = Math.min(1, this.tensionTime * 2.0)
+                const targetNoiseAmount = 0.08 + tensionIntensity * 0.07
+                const targetNoiseSpeed = 0.3 + tensionIntensity * 0.6
+
+                // Smooth lerp for organic feel
+                const currentNoiseAmount = this.particles.material.uniforms.uNoiseAmount.value
+                const currentNoiseSpeed = this.particles.material.uniforms.uNoiseSpeed.value
+                this.particles.material.uniforms.uNoiseAmount.value =
+                    currentNoiseAmount + (targetNoiseAmount - currentNoiseAmount) * 0.08
+                this.particles.material.uniforms.uNoiseSpeed.value =
+                    currentNoiseSpeed + (targetNoiseSpeed - currentNoiseSpeed) * 0.08
                 break
 
             default:
                 // Reset effects
                 this.particles.setPauseFactor(0)
-                this.particles.setColorTint(1.0)
-                this.particles.setColorHue(0)
+
+                // Return noise to calm baseline
+                const calmNoiseAmount = this.particles.material.uniforms.uNoiseAmount.value
+                const calmNoiseSpeed = this.particles.material.uniforms.uNoiseSpeed.value
+                this.particles.material.uniforms.uNoiseAmount.value =
+                    calmNoiseAmount + (0.08 - calmNoiseAmount) * 0.03
+                this.particles.material.uniforms.uNoiseSpeed.value =
+                    calmNoiseSpeed + (0.3 - calmNoiseSpeed) * 0.03
         }
+
+        // Calculate TARGET color progress based on velocity + tension
+        // Higher velocity + longer tension = warmer colors (pink → ember)
+        const targetColorProgress = Math.min(1,
+            velocity * 0.8 +                    // instant velocity contribution
+            this.tensionTime * 0.3 +            // accumulated tension
+            (this.currentPhase === PHASE.BLEEDING ? 0.3 : 0) // boost in bleeding
+        )
+
+        // SMOOTH the color transition (lerp towards target, not instant)
+        // This prevents jarring color jumps when velocity spikes
+        const lerpFactor = 1 - Math.exp(-this.colorSmoothingSpeed * delta)
+        this.currentColorProgress += (targetColorProgress - this.currentColorProgress) * lerpFactor
+        this.particles.setColorProgress(this.currentColorProgress)
 
         // Apply rolling based on input (with trauma-adjusted response)
         if (isActive && this.currentPhase !== PHASE.LISTENING) {

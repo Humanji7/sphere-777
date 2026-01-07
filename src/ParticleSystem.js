@@ -12,7 +12,7 @@ export class ParticleSystem {
 
     // Sphere parameters
     this.baseRadius = 1.5
-    this.breathAmount = 0.05
+    this.breathAmount = 0.088
     this.breathSpeed = 0.8 // radians per second (3-4 sec cycle)
     this.breathPhase = 0
 
@@ -20,9 +20,9 @@ export class ParticleSystem {
     this.attractionStrength = 0.3
     this.attractionRadius = 2.0
 
-    // Colors (brightened for visibility)
-    this.colorNormal = new THREE.Color(0xBB9FDF)  // Bright purple
-    this.colorGhost = new THREE.Color(0xDDCCFF)   // Even lighter for ghosts
+    // Colors (Deep Blue baseline for "Cosmic Blue" palette)
+    this.colorNormal = new THREE.Color().setHSL(0.66, 0.60, 0.50)  // Deep Blue (240°)
+    this.colorGhost = new THREE.Color().setHSL(0.66, 0.40, 0.75)   // Lighter blue for ghosts
     this.colorFalling = new THREE.Color(0x39FF14)
 
     // State
@@ -143,6 +143,8 @@ export class ParticleSystem {
         varying float vType;
         varying float vSeed;
         varying float vBleedPhase;
+        varying float vDepth;
+        varying float vUnifiedCurve;
         
         // ========== Simplex 3D Noise ==========
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -218,12 +220,31 @@ export class ParticleSystem {
           
           vec3 pos = position;
           
-          // Breathing effect (only for normal particles not evaporating)
+          // Combined Breathing, Boiling, and Heartbeat
+          float unifiedCurve = 0.5; // Default for non-breathing particles
+          
           if (aType < 1.5 && aBleedPhase < 0.01) {
-            float breathOffset = sin(uBreathPhase + aSeed * 0.5) * uBreathAmount;
+            float breathT = uBreathPhase;
+            
+            // 1. Unified Organic Breathing (Synchronized bellows)
+            // Asymmetrical expansion: sharper peak, longer valley (heavy inhale)
+            unifiedCurve = pow(sin(breathT) * 0.5 + 0.5, 1.6); 
+            float unifiedOffset = (unifiedCurve - 0.5) * uBreathAmount * 1.8;
+            
+            // 2. Micro-boiling (Individual particle activity)
+            // Much faster frequency for a "micro-shimmer" feel
+            float boilT = uBreathPhase * 12.0 + aSeed * 30.0;
+            float boilOffset = sin(boilT) * 0.006;
+            
+            // 3. Heartbeat: Subtle rapid pulse (80 bpm ≈ 8.4 rad/s)
+            float heartbeat = sin(uTime * 8.4) * 0.0035;
+            
             vec3 dir = normalize(aOriginalPos);
-            pos += dir * breathOffset;
+            pos += dir * (unifiedOffset + boilOffset + heartbeat);
           }
+          
+          // Pass unified curve to fragment shader for aura effect
+          vUnifiedCurve = unifiedCurve;
           
           // Organic surface noise (applied AFTER breathing)
           if (aType < 1.5 && aBleedPhase < 0.01) {
@@ -236,7 +257,7 @@ export class ParticleSystem {
           if (aBleedPhase > 0.0 && aBleedPhase < uEvapFadeOutEnd) {
             float driftProgress = aBleedPhase / uEvapFadeOutEnd;
             vec3 dir = normalize(aOriginalPos);
-            pos += dir * driftProgress * 0.15;  // Drift outward 15%
+            pos += dir * driftProgress * 0.50;  // Drift outward 50% (was 15%)
           }
           
           // Ghost shimmer
@@ -250,6 +271,9 @@ export class ParticleSystem {
           
           vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
           gl_Position = projectionMatrix * mvPosition;
+          
+          // Capture view-space depth for bokeh effect
+          vDepth = mvPosition.z;
           
           // Size attenuation
           float baseSize = uSize * uPixelRatio * (1.0 / -mvPosition.z);
@@ -285,6 +309,8 @@ export class ParticleSystem {
         varying float vType;
         varying float vSeed;
         varying float vBleedPhase;
+        varying float vDepth;
+        varying float vUnifiedCurve;
         
         void main() {
           // Circular particle
@@ -294,6 +320,16 @@ export class ParticleSystem {
           
           // Soft edge
           float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
+          
+          // === AURA: Breath-synchronized glow ===
+          // When sphere "inhales" (unifiedCurve high), particles glow brighter
+          float aura = 0.7 + vUnifiedCurve * 0.3;
+          alpha *= aura;
+          
+          // === BOKEH: Depth-based fade ===
+          // Background particles (further from camera, z more negative) are dimmer
+          float depthFade = smoothstep(-5.0, 0.5, vDepth);
+          alpha *= 0.65 + 0.35 * depthFade;
           
           vec3 color = uColorNormal * uColorTint;
           
@@ -437,6 +473,75 @@ export class ParticleSystem {
     const shifted = this.colorNormal.clone()
     shifted.offsetHSL(hue, 0, 0)
     this.material.uniforms.uColorNormal.value = shifted
+  }
+
+  /**
+   * Helper: lerp between two HSL colors with proper hue wrapping
+   * @param {Object} hsl1 - {h, s, l} values (h in 0-1)
+   * @param {Object} hsl2 - {h, s, l} values (h in 0-1)
+   * @param {number} t - interpolation factor 0-1
+   * @returns {THREE.Color}
+   */
+  _lerpHSL(hsl1, hsl2, t) {
+    // Hue wrapping: find shortest path around the wheel
+    let h1 = hsl1.h
+    let h2 = hsl2.h
+
+    // Calculate the difference
+    let hDiff = h2 - h1
+
+    // If the difference is more than 0.5, wrap around
+    if (hDiff > 0.5) {
+      h1 += 1.0  // Wrap h1 up
+    } else if (hDiff < -0.5) {
+      h2 += 1.0  // Wrap h2 up
+    }
+
+    // Lerp and normalize back to 0-1
+    let h = h1 + (h2 - h1) * t
+    if (h > 1.0) h -= 1.0
+    if (h < 0.0) h += 1.0
+
+    const s = hsl1.s + (hsl2.s - hsl1.s) * t
+    const l = hsl1.l + (hsl2.l - hsl1.l) * t
+
+    const result = new THREE.Color()
+    result.setHSL(h, s, l)
+    return result
+  }
+
+  /**
+   * Set color progress for smooth gradient transition
+   * @param {number} progress - 0 (deep blue) to 1 (nova gold), smooth HSL lerp through hue wheel
+   * 
+   * Color journey: Deep Blue(240°) → Purple → Magenta → Pink/Rose → Coral/Orange → Nova Gold(45°)
+   * Spans ~165° of the hue wheel, going THROUGH 0° (red) for maximum micro-tone richness
+   */
+  setColorProgress(progress) {
+    progress = Math.max(0, Math.min(1, progress))
+
+    // Define color stops in HSL for precise hue control (~165° journey)
+    // H values: 0=red, 0.083=orange, 0.125=gold, 0.166=yellow, 0.333=green, 0.5=cyan, 0.666=blue, 0.75=purple, 0.833=magenta
+    const stops = [
+      { h: 0.66, s: 0.60, l: 0.50 },   // 0.00: Deep Blue (240°) — Baseline Peace
+      { h: 0.76, s: 0.55, l: 0.58 },   // 0.20: Purple (275°)
+      { h: 0.86, s: 0.60, l: 0.55 },   // 0.40: Magenta (310°)
+      { h: 0.96, s: 0.65, l: 0.55 },   // 0.60: Pink/Rose (345°)
+      { h: 0.04, s: 0.70, l: 0.55 },   // 0.80: Coral/Orange (15°) - past 0°!
+      { h: 0.125, s: 0.80, l: 0.70 }   // 1.00: Nova Gold (45°) — Max Tension
+    ]
+
+    // Find which segment we're in
+    const segmentCount = stops.length - 1
+    const scaledProgress = progress * segmentCount
+    const segmentIndex = Math.min(Math.floor(scaledProgress), segmentCount - 1)
+    const segmentT = scaledProgress - segmentIndex
+
+    const hsl1 = stops[segmentIndex]
+    const hsl2 = stops[segmentIndex + 1]
+
+    const resultColor = this._lerpHSL(hsl1, hsl2, segmentT)
+    this.material.uniforms.uColorNormal.value = resultColor
   }
 
   /**
