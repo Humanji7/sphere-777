@@ -3,9 +3,12 @@ import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
+import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js'
 import { InputManager } from './InputManager.js'
 import { ParticleSystem } from './ParticleSystem.js'
 import { Sphere } from './Sphere.js'
+import { EffectConductor } from './EffectConductor.js'
 
 /**
  * Main application entry point
@@ -65,6 +68,12 @@ class App {
             0.2     // threshold (brightness cutoff, low = more glow)
         )
         this.composer.addPass(this.bloomPass)
+
+        // Chromatic Aberration (RGB shift) - controlled by EffectConductor
+        this.rgbShiftPass = new ShaderPass(RGBShiftShader)
+        this.rgbShiftPass.uniforms.amount.value = 0  // Start at 0, driven by conductor
+        this.rgbShiftPass.uniforms.angle.value = 0   // Horizontal shift
+        this.composer.addPass(this.rgbShiftPass)
     }
 
     _initModules() {
@@ -82,6 +91,9 @@ class App {
         // Sphere orchestrator (emotional state machine)
         this.sphere = new Sphere(this.particleSystem, this.inputManager)
         // this.sphere.setDebug(true)  // Uncomment for debug logging
+
+        // Effect Conductor ("Living Chaos" system)
+        this.effectConductor = new EffectConductor()
     }
 
     _bindEvents() {
@@ -139,6 +151,17 @@ class App {
             const colorProgress = this.sphere.currentColorProgress || 0
             // Bloom intensifies with tension (0.4 baseline, up to 1.5 at max)
             this.bloomPass.strength = 0.4 + colorProgress * 1.1
+
+            // Effect Conductor: probabilistic effect system
+            this.effectConductor.update(delta, elapsed, colorProgress)
+            const fx = this.effectConductor.getOutputs()
+
+            // Apply conductor outputs to particle system
+            this.particleSystem.material.uniforms.uDynamicSizeAmount.value = fx.dynamicSizeAmount
+            this.particleSystem.material.uniforms.uSparkleIntensity.value = fx.sparkleIntensity
+
+            // Chromatic aberration: intensity 0-1 → amount 0-0.008
+            this.rgbShiftPass.uniforms.amount.value = fx.chromaticAberration * 0.008
         } else {
             // Before start - just breathe
             this.particleSystem.update(delta, elapsed)

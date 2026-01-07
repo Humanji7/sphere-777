@@ -123,7 +123,10 @@ export class ParticleSystem {
         // Perlin noise dynamics
         uNoiseAmount: { value: 0.08 },     // base displacement amplitude
         uNoiseSpeed: { value: 0.3 },       // base animation speed (kept constant)
-        uGoosebumpsIntensity: { value: 0.0 } // high-freq layer intensity (0→0.05)
+        uGoosebumpsIntensity: { value: 0.0 }, // high-freq layer intensity (0→0.05)
+        // Effect Conductor uniforms
+        uDynamicSizeAmount: { value: 0.0 },   // pulsation intensity (0-1)
+        uSparkleIntensity: { value: 0.0 }     // sparkle brightness (0-1)
       },
       vertexShader: `
         attribute float aType;
@@ -141,6 +144,7 @@ export class ParticleSystem {
         uniform float uNoiseAmount;
         uniform float uNoiseSpeed;
         uniform float uGoosebumpsIntensity;
+        uniform float uDynamicSizeAmount;
         
         varying float vType;
         varying float vSeed;
@@ -303,6 +307,13 @@ export class ParticleSystem {
           
           gl_PointSize = baseSize;
           
+          // Dynamic Size: heartbeat-synced pulsation (80 bpm = 8.377 rad/s)
+          if (uDynamicSizeAmount > 0.0) {
+            float heartbeatPulse = sin(uTime * 8.377) * 0.5 + 0.5;
+            // Subtle: max 15% size variation at full intensity
+            gl_PointSize *= 1.0 + uDynamicSizeAmount * heartbeatPulse * 0.15;
+          }
+          
           // Ghosts slightly smaller
           if (aType > 0.5 && aType < 1.5) {
             gl_PointSize *= 0.7;
@@ -317,6 +328,7 @@ export class ParticleSystem {
         uniform float uColorTint;
         uniform float uEvapFadeOutEnd;
         uniform float uEvapFadeInStart;
+        uniform float uSparkleIntensity;
         
         varying float vType;
         varying float vSeed;
@@ -374,6 +386,18 @@ export class ParticleSystem {
           if (vType > 0.5 && vType < 1.5) {
             color = uColorGhost * uColorTint;
             alpha *= 0.4 + 0.3 * sin(uTime * 3.0 + vSeed * 10.0);
+          }
+          
+          // Sparkles: random bright flashes on select particles
+          if (uSparkleIntensity > 0.0) {
+            // Pseudo-random based on seed and time
+            float sparkleRandom = fract(sin(vSeed * 12.9898 + uTime * 0.7) * 43758.5453);
+            // Only ~5% of particles sparkle at any moment
+            float sparkle = step(0.95, sparkleRandom) * uSparkleIntensity;
+            // Warm white sparkle color
+            color += sparkle * vec3(1.0, 0.95, 0.85);
+            // Boost alpha for visible sparkle
+            alpha = min(1.0, alpha + sparkle * 0.5);
           }
           
           gl_FragColor = vec4(color, alpha);
