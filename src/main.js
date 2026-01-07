@@ -2,6 +2,7 @@ import '../style.css'
 import * as THREE from 'three'
 import { InputManager } from './InputManager.js'
 import { ParticleSystem } from './ParticleSystem.js'
+import { Sphere } from './Sphere.js'
 
 /**
  * Main application entry point
@@ -48,6 +49,10 @@ class App {
         // Particle system
         this.particleSystem = new ParticleSystem(2500, 0.03)
         this.scene.add(this.particleSystem.getMesh())
+
+        // Sphere orchestrator (emotional state machine)
+        this.sphere = new Sphere(this.particleSystem, this.inputManager)
+        // this.sphere.setDebug(true)  // Uncomment for debug logging
     }
 
     _bindEvents() {
@@ -93,17 +98,14 @@ class App {
 
         // Update input
         this.inputManager.update(delta)
-        const inputState = this.inputManager.getState()
 
-        // Apply particle behavior based on input
-        if (this.isStarted && inputState.isActive) {
-            this.particleSystem.applyAttraction(inputState.position, 1.0 - inputState.velocity * 2)
+        // Delegate all behavior to the Sphere orchestrator
+        if (this.isStarted) {
+            this.sphere.update(delta, elapsed)
         } else {
-            this.particleSystem.returnToOrigin()
+            // Before start - just breathe
+            this.particleSystem.update(delta, elapsed)
         }
-
-        // Update particles
-        this.particleSystem.update(delta, elapsed)
 
         // Render
         this.renderer.render(this.scene, this.camera)

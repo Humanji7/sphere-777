@@ -88,9 +88,15 @@ export class InputManager {
     }
 
     update(delta) {
+        // Calculate delta BEFORE updating prevPosition
+        this.lastDelta = {
+            x: this.position.x - this.prevPosition.x,
+            y: this.position.y - this.prevPosition.y
+        }
+
         // Calculate velocity
-        const dx = this.position.x - this.prevPosition.x
-        const dy = this.position.y - this.prevPosition.y
+        const dx = this.lastDelta.x
+        const dy = this.lastDelta.y
         const instantVelocity = Math.sqrt(dx * dx + dy * dy) / delta
 
         // Smooth velocity with history
@@ -112,7 +118,7 @@ export class InputManager {
             this.franticTime = 0
         }
 
-        // Store previous position
+        // Store previous position AFTER calculating delta
         this.prevPosition.x = this.position.x
         this.prevPosition.y = this.position.y
     }
@@ -120,6 +126,7 @@ export class InputManager {
     getState() {
         return {
             position: { ...this.position },
+            delta: this.lastDelta || { x: 0, y: 0 },
             velocity: this.velocity,
             idleTime: this.idleTime,
             franticTime: this.franticTime,
