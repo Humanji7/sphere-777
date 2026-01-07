@@ -20,6 +20,7 @@ class App {
         this.clock = new THREE.Clock()
 
         this._initThree()
+        this._initPostProcessing()
         this._initModules()
         this._bindEvents()
         this._animate()
@@ -43,9 +44,6 @@ class App {
         })
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
         this.renderer.setSize(window.innerWidth, window.innerHeight)
-
-        // Post-processing: Bloom/Glow effect
-        this._initPostProcessing()
     }
 
     _initPostProcessing() {
@@ -67,86 +65,95 @@ class App {
             0.2     // threshold (brightness cutoff, low = more glow)
         )
         this.composer.addPass(this.bloomPass)
-
-        _initModules() {
-            // Input manager
-            this.inputManager = new InputManager(this.canvas)
-
-            // Adaptive particle count for mobile
-            const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
-            const particleCount = isMobile ? 2000 : 5000
-
-            // Particle system
-            this.particleSystem = new ParticleSystem(particleCount, 0.03)
-            this.scene.add(this.particleSystem.getMesh())
-
-            // Sphere orchestrator (emotional state machine)
-            this.sphere = new Sphere(this.particleSystem, this.inputManager)
-            // this.sphere.setDebug(true)  // Uncomment for debug logging
-        }
-
-        _bindEvents() {
-            // Resize
-            window.addEventListener('resize', this._onResize.bind(this))
-
-            // Click to start
-            this.clickToStart.addEventListener('click', this._start.bind(this))
-            this.clickToStart.addEventListener('touchstart', (e) => {
-                e.preventDefault()
-                this._start()
-            })
-        }
-
-        _start() {
-            if (this.isStarted) return
-            this.isStarted = true
-            this.clickToStart.classList.add('hidden')
-
-            // Audio would be initialized here
-            // this.audioManager = new AudioManager()
-        }
-
-        _onResize() {
-            const width = window.innerWidth
-            const height = window.innerHeight
-
-            this.camera.aspect = width / height
-            this.camera.updateProjectionMatrix()
-
-            this.renderer.setSize(width, height)
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-
-            // Update particle size uniform
-            this.particleSystem.material.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2)
-        }
-
-        _animate() {
-            requestAnimationFrame(this._animate.bind(this))
-
-            const delta = this.clock.getDelta()
-            const elapsed = this.clock.getElapsedTime()
-
-            // Update input
-            this.inputManager.update(delta)
-
-            // Delegate all behavior to the Sphere orchestrator
-            if (this.isStarted) {
-                this.sphere.update(delta, elapsed)
-            } else {
-                // Before start - just breathe
-                this.particleSystem.update(delta, elapsed)
-            }
-
-            // Render
-            this.renderer.render(this.scene, this.camera)
-        }
-
-        dispose() {
-            this.particleSystem.dispose()
-            this.inputManager.dispose()
-            this.renderer.dispose()
-        }
     }
+
+    _initModules() {
+        // Input manager
+        this.inputManager = new InputManager(this.canvas)
+
+        // Adaptive particle count for mobile
+        const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
+        const particleCount = isMobile ? 2000 : 5000
+
+        // Particle system
+        this.particleSystem = new ParticleSystem(particleCount, 0.03)
+        this.scene.add(this.particleSystem.getMesh())
+
+        // Sphere orchestrator (emotional state machine)
+        this.sphere = new Sphere(this.particleSystem, this.inputManager)
+        // this.sphere.setDebug(true)  // Uncomment for debug logging
+    }
+
+    _bindEvents() {
+        // Resize
+        window.addEventListener('resize', this._onResize.bind(this))
+
+        // Click to start
+        this.clickToStart.addEventListener('click', this._start.bind(this))
+        this.clickToStart.addEventListener('touchstart', (e) => {
+            e.preventDefault()
+            this._start()
+        })
+    }
+
+    _start() {
+        if (this.isStarted) return
+        this.isStarted = true
+        this.clickToStart.classList.add('hidden')
+
+        // Audio would be initialized here
+        // this.audioManager = new AudioManager()
+    }
+
+    _onResize() {
+        const width = window.innerWidth
+        const height = window.innerHeight
+
+        this.camera.aspect = width / height
+        this.camera.updateProjectionMatrix()
+
+        this.renderer.setSize(width, height)
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+
+        // Update bloom pass resolution
+        this.composer.setSize(width, height)
+
+        // Update particle size uniform
+        this.particleSystem.material.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2)
+    }
+
+    _animate() {
+        requestAnimationFrame(this._animate.bind(this))
+
+        const delta = this.clock.getDelta()
+        const elapsed = this.clock.getElapsedTime()
+
+        // Update input
+        this.inputManager.update(delta)
+
+        // Delegate all behavior to the Sphere orchestrator
+        if (this.isStarted) {
+            this.sphere.update(delta, elapsed)
+
+            // Dynamic bloom based on emotional state
+            const colorProgress = this.sphere.currentColorProgress || 0
+            // Bloom intensifies with tension (0.4 baseline, up to 1.5 at max)
+            this.bloomPass.strength = 0.4 + colorProgress * 1.1
+        } else {
+            // Before start - just breathe
+            this.particleSystem.update(delta, elapsed)
+        }
+
+        // Render with post-processing
+        this.composer.render()
+    }
+
+    dispose() {
+        this.particleSystem.dispose()
+        this.inputManager.dispose()
+        this.renderer.dispose()
+    }
+}
 
 // Start app
 window.app = new App()

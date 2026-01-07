@@ -121,8 +121,9 @@ export class ParticleSystem {
         uEvapFadeOutEnd: { value: 0.45 },  // phase 0-0.45 = fade out
         uEvapFadeInStart: { value: 0.55 }, // phase 0.55-1.0 = fade in
         // Perlin noise dynamics
-        uNoiseAmount: { value: 0.08 },     // displacement amplitude
-        uNoiseSpeed: { value: 0.3 }        // animation speed
+        uNoiseAmount: { value: 0.08 },     // base displacement amplitude
+        uNoiseSpeed: { value: 0.3 },       // base animation speed (kept constant)
+        uGoosebumpsIntensity: { value: 0.0 } // high-freq layer intensity (0→0.05)
       },
       vertexShader: `
         attribute float aType;
@@ -139,6 +140,7 @@ export class ParticleSystem {
         uniform float uEvapFadeInStart;
         uniform float uNoiseAmount;
         uniform float uNoiseSpeed;
+        uniform float uGoosebumpsIntensity;
         
         varying float vType;
         varying float vSeed;
@@ -246,11 +248,21 @@ export class ParticleSystem {
           // Pass unified curve to fragment shader for aura effect
           vUnifiedCurve = unifiedCurve;
           
-          // Organic surface noise (applied AFTER breathing)
+          // Organic surface noise: Dual-Layer Goosebumps
+          // Layer 1: Base waves (low freq, slow) - always present, organic
+          // Layer 2: Goosebumps (high freq, medium speed) - modulated by tension
           if (aType < 1.5 && aBleedPhase < 0.01) {
-            float noiseVal = snoise(aOriginalPos * 2.0 + uTime * uNoiseSpeed);
             vec3 dir = normalize(aOriginalPos);
-            pos += dir * noiseVal * uNoiseAmount;
+            
+            // Base layer: slow, low-frequency organic waves
+            float baseNoise = snoise(aOriginalPos * 2.0 + uTime * 0.3);
+            
+            // Goosebumps layer: faster, high-frequency ripples
+            float goosebumps = snoise(aOriginalPos * 8.0 + uTime * 0.5);
+            
+            // Combine: base always present + goosebumps scaled by intensity
+            float finalNoise = baseNoise * uNoiseAmount + goosebumps * uGoosebumpsIntensity;
+            pos += dir * finalNoise;
           }
           
           // Evaporation: radial drift outward during fade-out
