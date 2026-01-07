@@ -10,6 +10,7 @@ import { ParticleSystem } from './ParticleSystem.js'
 import { Sphere } from './Sphere.js'
 import { EffectConductor } from './EffectConductor.js'
 import { SoundManager } from './SoundManager.js'
+import { Eye } from './Eye.js'
 
 /**
  * Main application entry point
@@ -89,8 +90,13 @@ class App {
         this.particleSystem = new ParticleSystem(particleCount, 0.03)
         this.scene.add(this.particleSystem.getMesh())
 
+        // Eye (organic particle-based)
+        this.eye = new Eye(this.particleSystem.baseRadius)
+        this.scene.add(this.eye.getMesh())
+
         // Sphere orchestrator (emotional state machine)
         this.sphere = new Sphere(this.particleSystem, this.inputManager, this.camera)
+        this.sphere.setEye(this.eye)  // Connect eye to emotional system
         // this.sphere.setDebug(true)  // Uncomment for debug logging
 
         // Effect Conductor ("Living Chaos" system)
@@ -149,6 +155,10 @@ class App {
         if (this.isStarted) {
             this.sphere.update(delta, elapsed)
 
+            // Sync eye rotation with sphere rolling
+            this.eye.setSphereRotation(this.particleSystem.mesh.rotation)
+            this.eye.update(delta, elapsed)
+
             // Dynamic bloom based on emotional state
             const colorProgress = this.sphere.currentColorProgress || 0
             // Bloom intensifies with tension (0.4 baseline, up to 1.5 at max)
@@ -167,6 +177,7 @@ class App {
         } else {
             // Before start - just breathe
             this.particleSystem.update(delta, elapsed)
+            this.eye.update(delta, elapsed)
         }
 
         // Render with post-processing

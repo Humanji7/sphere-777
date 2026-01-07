@@ -118,6 +118,14 @@ export class Sphere {
         this.soundManager = sm
     }
 
+    /**
+     * Set the eye (organic particle-based)
+     * @param {Eye} eye - The eye instance
+     */
+    setEye(eye) {
+        this.eye = eye
+    }
+
     update(delta, elapsed) {
         const inputState = this.input.getState()
 
@@ -436,6 +444,43 @@ export class Sphere {
         // GESTURE REACTIONS (Stage 6)
         // ═══════════════════════════════════════════════════════════
         this._processGesture(delta, inputState)
+
+        // ═══════════════════════════════════════════════════════════
+        // EYE INTEGRATION
+        // ═══════════════════════════════════════════════════════════
+        if (this.eye) {
+            // Eye follows cursor
+            if (this.cursorOnSphere) {
+                this.eye.lookAt(this.cursorWorldPos)
+            }
+
+            // Pupil dilation based on tension (inverse: dilates when calm, contracts when tense)
+            // This mimics realistic fear response (pupils constrict under stress)
+            const pupilDilation = 1 - this.currentColorProgress
+            this.eye.setDilation(pupilDilation * 0.7)  // Max 70% dilation when calm
+
+            // Pass tension to eye for micro-tremors
+            this.eye.setTension(this.currentColorProgress)
+
+            // Phase-specific eye reactions
+            switch (this.currentPhase) {
+                case PHASE.LISTENING:
+                    // Blink during listening pause
+                    if (this.listeningPauseProgress > 0.3 && this.listeningPauseProgress < 0.4) {
+                        this.eye.blink()
+                    }
+                    break
+
+                case PHASE.BLEEDING:
+                case PHASE.TRAUMA:
+                    // Eyes close during pain/trauma
+                    this.eye.setSleeping(true)
+                    break
+
+                default:
+                    this.eye.setSleeping(false)
+            }
+        }
 
         // Update particles
         this.particles.update(delta, this.particles.material.uniforms.uTime.value + delta)
