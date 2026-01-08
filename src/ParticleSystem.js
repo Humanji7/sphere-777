@@ -159,7 +159,9 @@ export class ParticleSystem {
         // Touch Glow (RECOGNITION phase - hold gesture)
         uTouchGlowPos: { value: new THREE.Vector3(0, 0, 10) },  // Far away by default
         uTouchGlowIntensity: { value: 0.0 },
-        uPulse: { value: 0.0 }  // Heartbeat pulsation (0-1)
+        uPulse: { value: 0.0 },  // Heartbeat pulsation (0-1)
+        // Osmosis (Hold gesture — bidirectional exchange)
+        uOsmosisDepth: { value: 0.0 }  // 0-1, depth of penetration
       },
       vertexShader: `
         attribute float aType;
@@ -205,6 +207,8 @@ export class ParticleSystem {
         uniform vec3 uTouchGlowPos;
         uniform float uTouchGlowIntensity;
         uniform float uPulse;
+        // Osmosis (Hold gesture)
+        uniform float uOsmosisDepth;
         
         varying float vType;
         varying float vSeed;
@@ -502,6 +506,19 @@ export class ParticleSystem {
           }
           
           // ═══════════════════════════════════════════════════════════
+          // OSMOSIS: Particles indent under touch ("finger pressing membrane")
+          // ═══════════════════════════════════════════════════════════
+          if (uOsmosisDepth > 0.0 && vCursorInfluence > 0.0) {
+            vec3 cursorLocal = (inverse(modelMatrix) * vec4(uCursorWorldPos, 1.0)).xyz;
+            vec3 awayFromCursor = normalize(pos - cursorLocal);
+            float indent = uOsmosisDepth * 0.15;  // Max 15% of radius
+            float indentFactor = vCursorInfluence * indent;
+            
+            // Push particles away from cursor (creates visual "dent")
+            pos += awayFromCursor * indentFactor;
+          }
+          
+          // ═══════════════════════════════════════════════════════════
           // PULSE: Heartbeat pulsation during RECOGNITION
           // ═══════════════════════════════════════════════════════════
           if (uPulse > 0.0) {
@@ -519,6 +536,7 @@ export class ParticleSystem {
         uniform float uEvapFadeInStart;
         uniform float uSparkleIntensity;
         uniform float uCursorInfluenceStrength;  // 0-1, master glow control
+        uniform float uOsmosisDepth;  // 0-1, hold gesture penetration depth
         
         varying float vType;
         varying float vSeed;
@@ -644,6 +662,18 @@ export class ParticleSystem {
             color = mix(color, touchColor, vTouchGlow * 0.6);
             // Alpha boost for visibility
             alpha = min(1.0, alpha + vTouchGlow * 0.4);
+          }
+          
+          // ═══════════════════════════════════════════════════════════
+          // OSMOSIS WARMTH: Amber glow spreading from touch
+          // "Heat transfers between bodies"
+          // ═══════════════════════════════════════════════════════════
+          if (uOsmosisDepth > 0.0 && vCursorInfluence > 0.0) {
+            float warmth = uOsmosisDepth * vCursorInfluence;
+            vec3 amberGlow = vec3(1.0, 0.7, 0.3);  // Warm amber
+            color = mix(color, amberGlow, warmth * 0.4);
+            // Subtle alpha boost for warmth visibility
+            alpha = min(1.0, alpha + warmth * 0.2);
           }
           
           gl_FragColor = vec4(color, alpha);
@@ -1026,6 +1056,14 @@ export class ParticleSystem {
   clearTouchGlow() {
     this.material.uniforms.uTouchGlowIntensity.value = 0
     this.material.uniforms.uPulse.value = 0
+  }
+
+  /**
+   * Set osmosis depth for hold gesture visual effect
+   * @param {number} depth - 0 (no effect) to 1 (full penetration)
+   */
+  setOsmosisDepth(depth) {
+    this.material.uniforms.uOsmosisDepth.value = Math.max(0, Math.min(1, depth))
   }
 
   /**

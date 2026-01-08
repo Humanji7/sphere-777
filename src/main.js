@@ -12,6 +12,7 @@ import { EffectConductor } from './EffectConductor.js'
 import { SoundManager } from './SoundManager.js'
 import { Eye } from './Eye.js'
 import { MemoryManager } from './MemoryManager.js'
+import { HapticManager } from './HapticManager.js'
 
 /**
  * Main application entry point
@@ -145,6 +146,10 @@ class App {
         // Initialize audio after user interaction (respects autoplay policy)
         this.soundManager = new SoundManager()
         this.sphere.setSoundManager(this.soundManager)
+
+        // Initialize haptic feedback (Vibration API)
+        this.hapticManager = new HapticManager()
+        this.sphere.setHapticManager(this.hapticManager)
     }
 
     _onResize() {

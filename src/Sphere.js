@@ -142,6 +142,14 @@ export class Sphere {
         // Memory Manager (emotional memory / trust system)
         this.memory = null
 
+        // Haptic Manager (vibration feedback)
+        this.haptic = null
+        this.lastHapticPulse = 0  // Last time haptic pulse was triggered
+
+        // Osmosis state (continuous hold gradient)
+        this.osmosisActive = false
+        this.osmosisDepth = 0  // Current osmosis depth 0-1
+
         // Debug
         this.DEBUG = false
     }
@@ -178,6 +186,14 @@ export class Sphere {
         this.sizeMultiplier = multiplier
     }
 
+    /**
+     * Set the haptic manager (for vibration feedback)
+     * @param {HapticManager} hm - The haptic manager instance
+     */
+    setHapticManager(hm) {
+        this.haptic = hm
+    }
+
     update(delta, elapsed) {
         const inputState = this.input.getState()
 
@@ -205,29 +221,67 @@ export class Sphere {
         }
 
         // ═══════════════════════════════════════════════════════════
-        // HOLD-BASED CALMING & RECOGNITION TRIGGER
-        // "Терпеливое присутствие" — patient presence can calm from any phase
+        // OSMOSIS: Continuous Hold Gradient — "bidirectional membrane exchange"
+        // Replaces phased recognition with smooth gradient
         // ═══════════════════════════════════════════════════════════
         const { holdDuration, isHolding } = inputState
 
         if (isHolding && this.cursorOnSphere && holdDuration > 0) {
-            // Gradual calming while holding (even outside RECOGNITION phase)
-            // The longer you hold, the more effective
-            const calmingRate = this.recognitionConfig.calmingRate
-            const calmingAmount = delta * calmingRate * Math.min(holdDuration, 3.0)
+            // Calculate osmosis depth (continuous gradient, no phases)
+            const depth = this._calculateOsmosisDepth(holdDuration)
+            this.osmosisDepth = depth
 
-            this.traumaLevel = Math.max(0, this.traumaLevel - calmingAmount * 0.5)
-            this.tensionTime = Math.max(0, this.tensionTime - calmingAmount)
-
-            // Trigger RECOGNITION if held long enough and not already in it
-            if (holdDuration > this.recognitionConfig.holdThreshold &&
-                this.currentPhase !== PHASE.RECOGNITION &&
-                this.traumaLevel < 0.5) {  // Can't recognize while in deep trauma
-
-                // Store touch position for gaze lock and glow
+            // Start osmosis effects on first frame
+            if (!this.osmosisActive && depth > 0) {
+                this.osmosisActive = true
                 this.recognitionTouchPos.copy(this.cursorWorldPos)
-                this._transitionTo(PHASE.RECOGNITION)
+
+                // Start osmosis bass
+                if (this.soundManager) {
+                    this.soundManager.startOsmosisBass()
+                }
+
+                // Initial soft touch haptic
+                if (this.haptic) {
+                    this.haptic.softTouch()
+                }
+
+                // Lock eye gaze
+                if (this.eye) {
+                    this.eye.lockGaze(this.recognitionTouchPos)
+                }
             }
+
+            // Apply continuous osmosis effects
+            if (depth > 0) {
+                // Haptic heartbeat (every ~0.8s when depth > 0.1)
+                if (this.haptic && depth > 0.1 && elapsed - this.lastHapticPulse > 0.8) {
+                    this.haptic.heartbeat(depth)
+                    this.lastHapticPulse = elapsed
+                }
+
+                // Sound: osmosis bass intensity
+                if (this.soundManager) {
+                    this.soundManager.setOsmosisDepth(depth)
+                }
+
+                // Visual: particle indent + amber warmth
+                this.particles.setOsmosisDepth(depth)
+
+                // Eye dilation follows depth
+                if (this.eye) {
+                    this.eye.setDilation(0.3 + depth * 0.7)
+                }
+
+                // Gradual calming (stronger with depth)
+                const calmingRate = this.recognitionConfig.calmingRate
+                const calmingAmount = delta * calmingRate * (1 + depth * 2)
+                this.traumaLevel = Math.max(0, this.traumaLevel - calmingAmount * 0.5)
+                this.tensionTime = Math.max(0, this.tensionTime - calmingAmount)
+            }
+        } else if (this.osmosisActive) {
+            // Hold released — exit osmosis
+            this._exitOsmosis()
         }
 
         // Process current phase and check transitions
@@ -576,6 +630,41 @@ export class Sphere {
 
         this.recognitionProgress = 0
         this.wasInRecognition = false
+    }
+
+    /**
+     * Calculate osmosis depth from hold duration
+     * Continuous gradient: 0-0.3s → 0, 0.3-2s → 0→0.7, 2-5s → 0.7→1.0
+     * @param {number} holdDuration - Time holding in seconds
+     * @returns {number} Depth 0-1
+     */
+    _calculateOsmosisDepth(holdDuration) {
+        if (holdDuration < 0.3) return 0
+        if (holdDuration < 2) return (holdDuration - 0.3) / 1.7 * 0.7
+        if (holdDuration < 5) return 0.7 + (holdDuration - 2) / 3 * 0.3
+        return 1.0
+    }
+
+    /**
+     * Clean exit from osmosis state
+     */
+    _exitOsmosis() {
+        // Clear visual effects
+        this.particles.setOsmosisDepth(0)
+
+        // Stop osmosis bass
+        if (this.soundManager) {
+            this.soundManager.stopOsmosisBass()
+        }
+
+        // Unlock eye gaze
+        if (this.eye) {
+            this.eye.unlockGaze()
+        }
+
+        // Reset state
+        this.osmosisActive = false
+        this.osmosisDepth = 0
     }
 
     /**

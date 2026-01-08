@@ -38,6 +38,14 @@ export class SoundManager {
         this.recognitionActive = false
 
         // ═══════════════════════════════════════════════════════════
+        // OSMOSIS BASS (Hold gesture — deep physical vibration)
+        // 25-40Hz subharmonics, felt in the body
+        // ═══════════════════════════════════════════════════════════
+        this.osmosisOsc = null
+        this.osmosisGain = null
+        this.osmosisActive = false
+
+        // ═══════════════════════════════════════════════════════════
         // GESTURE EFFECTS (one-shot sounds)
         // ═══════════════════════════════════════════════════════════
         this.gestureGain = this.audioContext.createGain()
@@ -418,6 +426,84 @@ export class SoundManager {
                 this.recognitionGain = null
             }
             this.recognitionActive = false
+        }, fadeTime * 1000 + 50)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // OSMOSIS BASS: Ultra-low frequency felt in the body
+    // "The weight of connection" — 25-40Hz
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Start osmosis bass — very low frequency drone
+     * Called when hold begins on sphere
+     */
+    startOsmosisBass() {
+        if (this.osmosisActive) return
+        this.osmosisActive = true
+
+        const now = this.audioContext.currentTime
+
+        // Create ultra-low oscillator (25Hz)
+        this.osmosisOsc = this.audioContext.createOscillator()
+        this.osmosisOsc.type = 'sine'
+        this.osmosisOsc.frequency.value = 25  // Very low, subharmonic
+
+        // Gain envelope (starts at 0)
+        this.osmosisGain = this.audioContext.createGain()
+        this.osmosisGain.gain.setValueAtTime(0, now)
+
+        // Connect
+        this.osmosisOsc.connect(this.osmosisGain)
+        this.osmosisGain.connect(this.masterGain)
+        this.osmosisOsc.start(now)
+    }
+
+    /**
+     * Set osmosis depth — controls bass intensity and pitch
+     * @param {number} depth - 0 (nothing) to 1 (deep connection)
+     */
+    setOsmosisDepth(depth) {
+        if (!this.osmosisActive || !this.osmosisOsc) return
+
+        const now = this.audioContext.currentTime
+        const clampedDepth = Math.max(0, Math.min(1, depth))
+
+        // Volume rises with depth (0 → 0.5)
+        const targetGain = clampedDepth * 0.5
+        this.osmosisGain.gain.linearRampToValueAtTime(targetGain, now + 0.1)
+
+        // Frequency rises with depth (25Hz → 40Hz)
+        const targetFreq = 25 + clampedDepth * 15
+        this.osmosisOsc.frequency.linearRampToValueAtTime(targetFreq, now + 0.1)
+    }
+
+    /**
+     * Stop osmosis bass with graceful fade-out
+     */
+    stopOsmosisBass() {
+        if (!this.osmosisActive) return
+
+        const now = this.audioContext.currentTime
+        const fadeTime = 0.3
+
+        // Fade out
+        if (this.osmosisGain) {
+            this.osmosisGain.gain.linearRampToValueAtTime(0, now + fadeTime)
+        }
+
+        // Schedule stop after fade
+        setTimeout(() => {
+            if (this.osmosisOsc) {
+                this.osmosisOsc.stop()
+                this.osmosisOsc.disconnect()
+                this.osmosisOsc = null
+            }
+            if (this.osmosisGain) {
+                this.osmosisGain.disconnect()
+                this.osmosisGain = null
+            }
+            this.osmosisActive = false
         }, fadeTime * 1000 + 50)
     }
 
