@@ -36,9 +36,14 @@ export class SonicOrganism {
         this.debug = false
         this.frameCount = 0
 
+        // Granular membrane state (L3)
+        this.granularNode = null
+        this.granularReady = false
+
         // Initialize layers
         this._initSpectralBody()
         this._initPulseNetwork()
+        this._initGranularMembrane()  // L3: Tactile grain cloud
 
         // Resume context if suspended
         if (this.audioContext.state === 'suspended') {
@@ -194,6 +199,108 @@ export class SonicOrganism {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // LAYER 3: GRANULAR MEMBRANE — Touch Texture (50-200 grains)
+    // Tactile "skin" that responds to physical contact
+    // ═══════════════════════════════════════════════════════════════════════
+
+    async _initGranularMembrane() {
+        // Check for AudioWorklet support
+        if (!this.audioContext.audioWorklet) {
+            console.warn('[SonicOrganism] AudioWorklet not supported, skipping granular membrane')
+            return
+        }
+
+        try {
+            // Register the worklet processor
+            await this.audioContext.audioWorklet.addModule('/worklets/GranularProcessor.js')
+
+            // Create the worklet node
+            this.granularNode = new AudioWorkletNode(this.audioContext, 'granular-processor')
+
+            // Create a gain node for granular output level control
+            this.granularGain = this.audioContext.createGain()
+            this.granularGain.gain.value = 0.4  // Blend with spectral body
+
+            // Connect: spectral body → granular (as feedback input) → master
+            // This allows grains to sample the organism's own output
+            this.spectralGain.connect(this.granularNode)
+            this.granularNode.connect(this.granularGain)
+            this.granularGain.connect(this.masterGain)
+
+            this.granularReady = true
+            console.log('[SonicOrganism] Granular membrane initialized')
+
+        } catch (error) {
+            console.error('[SonicOrganism] Failed to initialize granular membrane:', error)
+        }
+    }
+
+    /**
+     * Update granular membrane based on touch state
+     * @param {Object} touch - Touch state from InputManager
+     * @param {number} touch.x - X position (-1 to 1)
+     * @param {number} touch.y - Y position (-1 to 1)
+     * @param {number} touch.velocity - Movement velocity
+     * @param {number} touch.intensity - Touch pressure/radius (0-1)
+     * @param {number} touch.holdDuration - How long held in place
+     * @param {string} touch.gestureType - Current gesture classification
+     * @param {Array} ghostTraces - Active ghost traces for frozen loops
+     */
+    _updateGranularMembrane(touch = {}, ghostTraces = []) {
+        if (!this.granularReady || !this.granularNode) return
+
+        const {
+            x = 0,
+            y = 0,
+            velocity = 0,
+            intensity = 0,
+            holdDuration = 0,
+            gestureType = 'idle'
+        } = touch
+
+        // Determine if touch is actively interacting
+        const isActive = gestureType !== 'idle' && (intensity > 0 || velocity > 0.01)
+
+        // Map touch X to pitch (±2 octaves: 0.25 to 4.0)
+        // Center (x=0) = 1.0, Left = lower pitch, Right = higher pitch
+        const pitch = Math.pow(2, x * 2)  // -1 → 0.25, 0 → 1.0, 1 → 4.0
+
+        // Map touch Y to grain size (top = short 5ms, bottom = long 500ms)
+        // Y is inverted: +1 = top, -1 = bottom
+        // Convert to samples at 48kHz: 5ms = 240 samples, 500ms = 24000 samples
+        const grainSizeMs = 5 + (1 - (y + 1) / 2) * 495  // 5-500ms
+        const grainSizeSamples = Math.floor(grainSizeMs * 48)  // @ 48kHz
+
+        // Map velocity to density (slow = 5/sec, fast = 200/sec)
+        // Use logarithmic scaling for natural feel
+        const velocityNorm = Math.min(velocity / 0.5, 1)  // Normalize to 0-1
+        const density = 5 + velocityNorm * 195  // 5-200 grains/sec
+
+        // Map intensity to attack sharpness (light = soft 0.2, hard = sharp 0.01)
+        const attack = 0.2 - intensity * 0.19  // 0.2 → 0.01
+
+        // Check for freeze (ghost traces present and close to touch point)
+        const freeze = ghostTraces.length > 0
+
+        // Send parameters to worklet
+        this.granularNode.port.postMessage({
+            type: 'params',
+            density,
+            pitch,
+            grainSize: grainSizeSamples,
+            attack,
+            freeze,
+            active: isActive
+        })
+
+        // Adjust granular gain based on proximity and hold duration
+        // Louder when touching, softer when hovering
+        const now = this.audioContext.currentTime
+        const targetGain = isActive ? 0.3 + intensity * 0.3 : 0.1
+        this.granularGain.gain.linearRampToValueAtTime(targetGain, now + 0.05)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // UPDATE LOOP — Called every frame from main.js
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -213,7 +320,9 @@ export class SonicOrganism {
             proximity = 0,
             colorProgress = 0,
             emotionalState = 'PEACE',
-            isActive = false
+            isActive = false,
+            touch = {},           // L3: Touch state for granular membrane
+            ghostTraces = []      // L3: Ghost traces for frozen loops
         } = state
 
         // Smooth interpolation for all values (lerp with 0.05 factor)
@@ -231,6 +340,9 @@ export class SonicOrganism {
 
         // Apply Layer 2: Pulse Network modulation
         this._applyPulseModulation(pulses)
+
+        // Apply Layer 3: Granular Membrane (touch texture)
+        this._updateGranularMembrane(touch, ghostTraces)
 
         // Debug logging (every 60 frames)
         if (this.debug && this.frameCount % 60 === 0) {
@@ -386,6 +498,12 @@ export class SonicOrganism {
         // Disconnect bands
         for (const bandName in this.bands) {
             this.bands[bandName].gain.disconnect()
+        }
+
+        // Disconnect granular membrane (L3)
+        if (this.granularNode) {
+            this.granularNode.disconnect()
+            this.granularGain?.disconnect()
         }
 
         this.spectralGain.disconnect()

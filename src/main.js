@@ -204,12 +204,24 @@ class App {
             // SONIC ORGANISM: Continuous sound synthesis every frame
             // ═══════════════════════════════════════════════════════════
             if (this.sonicOrganism) {
+                const inputState = this.inputManager.getState()
                 this.sonicOrganism.update({
                     trustIndex: this.memoryManager.trustIndex,
                     proximity: this.sphere.currentProximity ?? 0,
                     colorProgress: this.sphere.currentColorProgress ?? 0,
                     emotionalState: this.sphere.currentState ?? 'PEACE',
-                    isActive: this.inputManager.isActive
+                    isActive: this.inputManager.isActive,
+                    // L3: Touch state for granular membrane
+                    touch: {
+                        x: inputState.position.x,
+                        y: inputState.position.y,
+                        velocity: inputState.velocity,
+                        intensity: inputState.touchIntensity,
+                        holdDuration: inputState.holdDuration,
+                        gestureType: inputState.gestureType
+                    },
+                    // Ghost traces for frozen grain loops
+                    ghostTraces: this.memoryManager.getActiveGhostTraces()
                 }, elapsed)
             }
 
