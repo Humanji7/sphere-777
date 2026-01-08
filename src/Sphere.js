@@ -462,9 +462,22 @@ export class Sphere {
         // EYE INTEGRATION
         // ═══════════════════════════════════════════════════════════
         if (this.eye) {
-            // Eye follows cursor
+            // ═══════════════════════════════════════════════════════════
+            // GAZE BEHAVIOR: Avoidance vs Seeking based on emotional state
+            // ═══════════════════════════════════════════════════════════
             if (this.cursorOnSphere) {
-                this.eye.lookAt(this.cursorWorldPos)
+                if (this.currentPhase === PHASE.TRAUMA || this.currentColorProgress > 0.7) {
+                    // High tension / trauma: eye looks AWAY from cursor (avoidance)
+                    // "She can't look at what hurts her"
+                    this.eye.lookAwayFrom(this.cursorWorldPos, this.currentColorProgress)
+                } else if (this.currentPhase === PHASE.HEALING) {
+                    // Healing: eye actively SEEKS cursor (curiosity, reconnection)
+                    // "She's ready to trust again"
+                    this.eye.seekCursor(this.cursorWorldPos)
+                } else {
+                    // Normal gaze tracking
+                    this.eye.lookAt(this.cursorWorldPos)
+                }
             }
 
             // Pupil dilation based on tension (inverse: dilates when calm, contracts when tense)
