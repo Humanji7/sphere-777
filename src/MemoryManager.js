@@ -32,10 +32,15 @@ export class MemoryManager {
         this.sessionLog = []
         this.maxLogSize = 100
 
-        // Ghost Traces: visual memory of scares
+        // Ghost Traces: visual memory of scares (Cold Traces)
         // {position: THREE.Vector3, birthTime: number, intensity: number}
         this.ghostTraces = []
         this.maxGhostTraces = 3
+
+        // Warm Traces: visual memory of gentle contact
+        // {position: THREE.Vector3, birthTime: number, intensity: number}
+        this.warmTraces = []
+        this.maxWarmTraces = 3
 
         // Persistence: debounced save
         this._lastSaveTime = 0
@@ -67,14 +72,20 @@ export class MemoryManager {
             maxNegativeChangePerSecond: 0.25,  // Can lose trust quickly
             maxPositiveChangePerSecond: 0.04,  // Recovery is slow and gradual
 
-            // Ghost Traces
+            // Ghost Traces (Cold — scares)
             ghostTraceLifetime: 4.0,        // Seconds until trace fades (longer for drama)
             ghostTraceThreshold: -0.25,     // approachSpeed that triggers trace (more sensitive)
-            ghostTraceMinInterval: 0.4      // Minimum seconds between traces
+            ghostTraceMinInterval: 0.4,     // Minimum seconds between traces
+
+            // Warm Traces (gentle contact)
+            warmTraceThreshold: 2.0,        // Seconds of stroke in zone to trigger
+            warmTraceLifetime: 4.0,         // Symmetric with ghost traces
+            warmTraceMinInterval: 0.5       // Minimum seconds between traces
         }
 
         // Internal state
         this.lastGhostTraceTime = -999
+        this.lastWarmTraceTime = -999
         this.currentElapsed = 0
         this.trustChangeThisFrame = 0
     }
@@ -182,13 +193,14 @@ export class MemoryManager {
         this._scheduleSave()
 
         // ═══════════════════════════════════════════════════════════
-        // UPDATE GHOST TRACES LIFECYCLE
+        // UPDATE TRACES LIFECYCLE (Ghost + Warm)
         // ═══════════════════════════════════════════════════════════
         this._updateGhostTraces(delta)
+        this._updateWarmTraces(delta)
     }
 
     /**
-     * Create a ghost trace at current cursor position
+     * Create a ghost trace at current cursor position (Cold Trace)
      * @private
      */
     _createGhostTrace(inputState) {
@@ -211,11 +223,44 @@ export class MemoryManager {
     }
 
     /**
+     * Create a warm trace at current cursor position
+     * Called when prolonged stroke is detected
+     */
+    createWarmTrace() {
+        if (this.warmTraces.length >= this.maxWarmTraces) {
+            // Remove oldest trace
+            this.warmTraces.shift()
+        }
+
+        this.warmTraces.push({
+            position: new THREE.Vector3(0, 0, 0), // To be set by Sphere
+            birthTime: this.currentElapsed,
+            intensity: 1.0,
+            needsPosition: true  // Flag for Sphere to set position
+        })
+
+        this.lastWarmTraceTime = this.currentElapsed
+        this._log('warm_trace', 0.05)  // Positive log for gentle contact
+    }
+
+    /**
      * Set position for the most recent ghost trace (called by Sphere)
      * @param {THREE.Vector3} position - World position on sphere
      */
     setLatestGhostTracePosition(position) {
         const trace = this.ghostTraces.find(t => t.needsPosition)
+        if (trace) {
+            trace.position.copy(position)
+            trace.needsPosition = false
+        }
+    }
+
+    /**
+     * Set position for the most recent warm trace (called by Sphere)
+     * @param {THREE.Vector3} position - World position on sphere
+     */
+    setLatestWarmTracePosition(position) {
+        const trace = this.warmTraces.find(t => t.needsPosition)
         if (trace) {
             trace.position.copy(position)
             trace.needsPosition = false
@@ -230,6 +275,23 @@ export class MemoryManager {
         const lifetime = this.config.ghostTraceLifetime
 
         this.ghostTraces = this.ghostTraces.filter(trace => {
+            const age = this.currentElapsed - trace.birthTime
+            if (age >= lifetime) return false
+
+            // Fade intensity over time (ease out)
+            trace.intensity = 1.0 - (age / lifetime)
+            return true
+        })
+    }
+
+    /**
+     * Update warm trace lifecycle (fade out)
+     * @private
+     */
+    _updateWarmTraces(delta) {
+        const lifetime = this.config.warmTraceLifetime
+
+        this.warmTraces = this.warmTraces.filter(trace => {
             const age = this.currentElapsed - trace.birthTime
             if (age >= lifetime) return false
 
@@ -303,6 +365,19 @@ export class MemoryManager {
      */
     getActiveGhostTraces() {
         return this.ghostTraces
+            .filter(t => !t.needsPosition)
+            .map(trace => ({
+                position: trace.position,
+                alpha: trace.intensity
+            }))
+    }
+
+    /**
+     * Get active warm traces for rendering
+     * @returns {Array<{position: THREE.Vector3, alpha: number}>}
+     */
+    getActiveWarmTraces() {
+        return this.warmTraces
             .filter(t => !t.needsPosition)
             .map(trace => ({
                 position: trace.position,
@@ -403,6 +478,7 @@ export class MemoryManager {
         return {
             trustIndex: this.trustIndex.toFixed(3),
             ghostTraceCount: this.ghostTraces.length,
+            warmTraceCount: this.warmTraces.length,
             tensionDecayMod: this.getTensionDecayModifier().toFixed(2),
             traumaThresholdMod: this.getTraumaThresholdModifier().toFixed(2),
             peaceColorMod: this.getPeaceColorMod()

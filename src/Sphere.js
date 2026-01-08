@@ -169,8 +169,8 @@ export class Sphere {
         if (this.memory) {
             this.memory.update(delta, this.currentPhase, inputState)
 
-            // Set ghost trace position in LOCAL/ORIGINAL space (match shader's aOriginalPos)
-            // The shader compares ghost trace positions against particle original positions,
+            // Set trace positions in LOCAL/ORIGINAL space (match shader's aOriginalPos)
+            // The shader compares trace positions against particle original positions,
             // which are in local space before mesh rotation is applied
             if (this.cursorOnSphere) {
                 // Transform world position to local space (undo mesh rotation)
@@ -178,7 +178,10 @@ export class Sphere {
                     .applyMatrix4(this.particles.mesh.matrixWorld.clone().invert())
                 // Normalize to sphere surface (match Fibonacci distribution radius)
                 localPos.normalize().multiplyScalar(this.particles.baseRadius)
+
+                // Set positions for any traces waiting for position
                 this.memory.setLatestGhostTracePosition(localPos)
+                this.memory.setLatestWarmTracePosition(localPos)
             }
         }
 
@@ -685,6 +688,21 @@ export class Sphere {
                 const baseNoise = 0.08
                 const pressedNoise = baseNoise * (1 - reaction.strokeCalm * 0.5)
                 this.particles.setNoiseAmount(pressedNoise)
+
+                // ═══════════════════════════════════════════════════════════
+                // WARM TRACE: Create when prolonged stroke in same zone
+                // "She remembers where it was soft"
+                // ═══════════════════════════════════════════════════════════
+                if (this.memory && this.cursorOnSphere) {
+                    const strokeZoneDuration = inputState.strokeZoneDuration || 0
+                    const threshold = this.memory.config.warmTraceThreshold
+                    const minInterval = this.memory.config.warmTraceMinInterval
+                    const timeSince = this.memory.currentElapsed - this.memory.lastWarmTraceTime
+
+                    if (strokeZoneDuration > threshold && timeSince > minInterval) {
+                        this.memory.createWarmTrace()
+                    }
+                }
                 break
 
             case 'poke':

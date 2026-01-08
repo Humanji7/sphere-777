@@ -54,6 +54,13 @@ export class InputManager {
         this.HOVER_THRESHOLD = 0.05      // Movement threshold to reset hover
 
         // ═══════════════════════════════════════════════════════════
+        // STROKE ZONE TRACKING (for Warm Traces)
+        // ═══════════════════════════════════════════════════════════
+        this.strokeZoneDuration = 0           // Time stroke held in same area
+        this.strokeZonePosition = { x: 0, y: 0 }  // Position where zone began
+        this.strokeZoneRadius = 0.15          // Drift threshold before zone resets
+
+        // ═══════════════════════════════════════════════════════════
         // GESTURE RECOGNITION
         // ═══════════════════════════════════════════════════════════
 
@@ -292,6 +299,28 @@ export class InputManager {
             this.hoverPosition.y = this.position.y
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // STROKE ZONE TRACKING (for Warm Traces)
+        // ═══════════════════════════════════════════════════════════
+        if (this.currentGesture === 'stroke') {
+            const zoneDist = Math.sqrt(
+                Math.pow(this.position.x - this.strokeZonePosition.x, 2) +
+                Math.pow(this.position.y - this.strokeZonePosition.y, 2)
+            )
+            if (zoneDist < this.strokeZoneRadius) {
+                // Still stroking in same zone
+                this.strokeZoneDuration += delta
+            } else {
+                // Drifted to new zone - reset but count this frame
+                this.strokeZoneDuration = delta
+                this.strokeZonePosition.x = this.position.x
+                this.strokeZonePosition.y = this.position.y
+            }
+        } else {
+            // Not stroking - reset zone tracking
+            this.strokeZoneDuration = 0
+        }
+
         // Store previous position AFTER calculating delta
         this.prevPosition.x = this.position.x
         this.prevPosition.y = this.position.y
@@ -401,7 +430,8 @@ export class InputManager {
 
             // Deep Interaction metrics
             approachSpeed: this.approachSpeed,
-            hoverDuration: this.hoverDuration
+            hoverDuration: this.hoverDuration,
+            strokeZoneDuration: this.strokeZoneDuration
         }
     }
 

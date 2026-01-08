@@ -148,7 +148,14 @@ export class ParticleSystem {
         uGhostTrace2Pos: { value: new THREE.Vector3(0, 0, 0) },
         uGhostTrace0Alpha: { value: 0.0 },
         uGhostTrace1Alpha: { value: 0.0 },
-        uGhostTrace2Alpha: { value: 0.0 }
+        uGhostTrace2Alpha: { value: 0.0 },
+        // Warm Traces (emotional memory - gentle contact leaves visual marks)
+        uWarmTrace0Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uWarmTrace1Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uWarmTrace2Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uWarmTrace0Alpha: { value: 0.0 },
+        uWarmTrace1Alpha: { value: 0.0 },
+        uWarmTrace2Alpha: { value: 0.0 }
       },
       vertexShader: `
         attribute float aType;
@@ -183,6 +190,13 @@ export class ParticleSystem {
         uniform float uGhostTrace0Alpha;
         uniform float uGhostTrace1Alpha;
         uniform float uGhostTrace2Alpha;
+        // Warm Traces (emotional memory - gentle contact)
+        uniform vec3 uWarmTrace0Pos;
+        uniform vec3 uWarmTrace1Pos;
+        uniform vec3 uWarmTrace2Pos;
+        uniform float uWarmTrace0Alpha;
+        uniform float uWarmTrace1Alpha;
+        uniform float uWarmTrace2Alpha;
         
         varying float vType;
         varying float vSeed;
@@ -191,6 +205,7 @@ export class ParticleSystem {
         varying float vUnifiedCurve;
         varying float vCursorInfluence;  // 0-1, proximity to cursor
         varying float vGhostInfluence;   // 0-1, proximity to ghost traces
+        varying float vWarmInfluence;    // 0-1, proximity to warm traces
         
         // ========== Simplex 3D Noise ==========
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -439,6 +454,30 @@ export class ParticleSystem {
             float inf2 = (1.0 - smoothstep(0.0, ghostRadius, dist2)) * uGhostTrace2Alpha;
             vGhostInfluence = max(vGhostInfluence, inf2);
           }
+          
+          // ═══════════════════════════════════════════════════════════
+          // WARM TRACES: Particles near gentle touch points glow warmly
+          // "She remembers where it was soft"
+          // ═══════════════════════════════════════════════════════════
+          vWarmInfluence = 0.0;
+          float warmRadius = 0.7;  // Same radius as ghost traces for symmetry
+          
+          // Check each warm trace
+          if (uWarmTrace0Alpha > 0.0) {
+            float dist0 = distance(aOriginalPos, uWarmTrace0Pos);
+            float inf0 = (1.0 - smoothstep(0.0, warmRadius, dist0)) * uWarmTrace0Alpha;
+            vWarmInfluence = max(vWarmInfluence, inf0);
+          }
+          if (uWarmTrace1Alpha > 0.0) {
+            float dist1 = distance(aOriginalPos, uWarmTrace1Pos);
+            float inf1 = (1.0 - smoothstep(0.0, warmRadius, dist1)) * uWarmTrace1Alpha;
+            vWarmInfluence = max(vWarmInfluence, inf1);
+          }
+          if (uWarmTrace2Alpha > 0.0) {
+            float dist2 = distance(aOriginalPos, uWarmTrace2Pos);
+            float inf2 = (1.0 - smoothstep(0.0, warmRadius, dist2)) * uWarmTrace2Alpha;
+            vWarmInfluence = max(vWarmInfluence, inf2);
+          }
         }
       `,
       fragmentShader: `
@@ -459,6 +498,7 @@ export class ParticleSystem {
         varying float vUnifiedCurve;
         varying float vCursorInfluence;  // 0-1, per-particle proximity
         varying float vGhostInfluence;   // 0-1, proximity to ghost traces
+        varying float vWarmInfluence;    // 0-1, proximity to warm traces
         
         void main() {
           // Circular particle
@@ -550,7 +590,18 @@ export class ParticleSystem {
             color = mix(color, ghostColor, vGhostInfluence * 0.75);
             // Strong alpha boost for dramatic visibility
             alpha = min(1.0, alpha + vGhostInfluence * 0.5);
-            // Subtle size pulsation could be added in vertex shader
+          }
+          
+          // ═══════════════════════════════════════════════════════════
+          // WARM TRACES: Amber glow near gentle touch points
+          // "The memory of softness glows"
+          // ═══════════════════════════════════════════════════════════
+          if (vWarmInfluence > 0.0) {
+            // Warm amber-gold tint ("cherished memory" effect)
+            vec3 warmColor = vec3(1.0, 0.75, 0.35);
+            color = mix(color, warmColor, vWarmInfluence * 0.75);
+            // Strong alpha boost for dramatic visibility
+            alpha = min(1.0, alpha + vWarmInfluence * 0.5);
           }
           
           gl_FragColor = vec4(color, alpha);
@@ -869,6 +920,33 @@ export class ParticleSystem {
     if (traces.length > 2) {
       uniforms.uGhostTrace2Pos.value.copy(traces[2].position)
       uniforms.uGhostTrace2Alpha.value = traces[2].alpha
+    }
+  }
+
+  /**
+   * Set warm traces for emotional memory visualization
+   * @param {Array} traces - [{position: THREE.Vector3, alpha: number}]
+   */
+  setWarmTraces(traces) {
+    const uniforms = this.material.uniforms
+
+    // Reset all traces first
+    uniforms.uWarmTrace0Alpha.value = 0.0
+    uniforms.uWarmTrace1Alpha.value = 0.0
+    uniforms.uWarmTrace2Alpha.value = 0.0
+
+    // Set up to 3 traces
+    if (traces.length > 0) {
+      uniforms.uWarmTrace0Pos.value.copy(traces[0].position)
+      uniforms.uWarmTrace0Alpha.value = traces[0].alpha
+    }
+    if (traces.length > 1) {
+      uniforms.uWarmTrace1Pos.value.copy(traces[1].position)
+      uniforms.uWarmTrace1Alpha.value = traces[1].alpha
+    }
+    if (traces.length > 2) {
+      uniforms.uWarmTrace2Pos.value.copy(traces[2].position)
+      uniforms.uWarmTrace2Alpha.value = traces[2].alpha
     }
   }
 

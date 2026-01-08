@@ -210,8 +210,12 @@ class App {
             const colorMod = this.memoryManager.getPeaceColorMod()
             this.particleSystem.setPeaceColorMod(colorMod.saturationMod, colorMod.lightnessMod)
 
+            // Pass traces to particle system for rendering
             const ghostTraces = this.memoryManager.getActiveGhostTraces()
             this.particleSystem.setGhostTraces(ghostTraces)
+
+            const warmTraces = this.memoryManager.getActiveWarmTraces()
+            this.particleSystem.setWarmTraces(warmTraces)
         } else {
             // Before start - just breathe
             this.particleSystem.update(delta, elapsed)
