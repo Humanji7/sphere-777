@@ -68,9 +68,9 @@ export class MemoryManager {
             maxPositiveChangePerSecond: 0.04,  // Recovery is slow and gradual
 
             // Ghost Traces
-            ghostTraceLifetime: 3.0,        // Seconds until trace fades
-            ghostTraceThreshold: -0.3,      // approachSpeed that triggers trace
-            ghostTraceMinInterval: 0.5      // Minimum seconds between traces
+            ghostTraceLifetime: 4.0,        // Seconds until trace fades (longer for drama)
+            ghostTraceThreshold: -0.25,     // approachSpeed that triggers trace (more sensitive)
+            ghostTraceMinInterval: 0.4      // Minimum seconds between traces
         }
 
         // Internal state

@@ -37,6 +37,7 @@ Deep Blue (240°) → Purple (275°) → Magenta (310°) → Pink (345°) → Co
 - **Evaporation Bleeding** — частицы fade-out → teleport → fade-in (500+600ms)
 - **Rolling Physics** — сфера "катается" за курсором с инерцией
 - **Dual-Layer Goosebumps** — органичные мурашки (base waves + high-freq ripples)
+- **Ghost Traces** — холодное свечение в местах испуга (fast approach → 4s cold blue glow)
 
 ---
 

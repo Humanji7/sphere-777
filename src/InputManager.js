@@ -265,9 +265,14 @@ export class InputManager {
             this.position.x * this.position.x +
             this.position.y * this.position.y
         )
-        // Smooth the approach speed calculation
-        const instantApproach = (distFromCenter - this.prevDistFromCenter) / delta
-        this.approachSpeed += (instantApproach - this.approachSpeed) * 0.3
+        // Smooth the approach speed calculation (with NaN guard)
+        if (delta > 0.001) {
+            const instantApproach = (distFromCenter - this.prevDistFromCenter) / delta
+            // Guard against NaN propagation
+            if (!isNaN(instantApproach) && isFinite(instantApproach)) {
+                this.approachSpeed += (instantApproach - this.approachSpeed) * 0.3
+            }
+        }
         this.prevDistFromCenter = distFromCenter
 
         // ═══════════════════════════════════════════════════════════

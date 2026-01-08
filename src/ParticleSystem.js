@@ -545,11 +545,12 @@ export class ParticleSystem {
           // "The memory of fear lingers"
           // ═══════════════════════════════════════════════════════════
           if (vGhostInfluence > 0.0) {
-            // Cold blue-white tint (slightly brighter for visibility)
-            vec3 ghostColor = vec3(0.75, 0.9, 1.0);
-            color = mix(color, ghostColor, vGhostInfluence * 0.6);
-            // Stronger alpha boost for visible "frozen" effect
-            alpha = min(1.0, alpha + vGhostInfluence * 0.35);
+            // Bright cold blue-white tint ("frozen memory" effect)
+            vec3 ghostColor = vec3(0.85, 0.95, 1.0);
+            color = mix(color, ghostColor, vGhostInfluence * 0.75);
+            // Strong alpha boost for dramatic visibility
+            alpha = min(1.0, alpha + vGhostInfluence * 0.5);
+            // Subtle size pulsation could be added in vertex shader
           }
           
           gl_FragColor = vec4(color, alpha);
