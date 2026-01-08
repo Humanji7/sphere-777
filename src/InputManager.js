@@ -108,6 +108,42 @@ export class InputManager {
         this.HOLD_THRESHOLD = 0.5           // Seconds to activate hold
         this.HOLD_MAX_DRIFT = 0.08          // Max movement to keep hold valid
 
+        // ═══════════════════════════════════════════════════════════
+        // TAP DETECTION (short contact, "я тут")
+        // ═══════════════════════════════════════════════════════════
+        this.contactStartTime = 0           // When touch/click started
+        this.justReleased = false           // True for 1 frame after release
+        this.contactDuration = 0            // Last contact duration (seconds)
+        this.TAP_MAX_DURATION = 0.3         // Max duration to count as tap
+        this.TAP_MAX_VELOCITY = 0.1         // Max velocity for tap (not a flick)
+
+        // ═══════════════════════════════════════════════════════════
+        // FLICK DETECTION (fast exit)
+        // ═══════════════════════════════════════════════════════════
+        this.exitVelocity = 0               // Velocity when leaving bounds
+        this.justExited = false             // True for 1 frame after exit
+        this.FLICK_MIN_EXIT_VELOCITY = 0.3  // Min velocity for flick
+
+        // ═══════════════════════════════════════════════════════════
+        // HESITATION DETECTION (approach → pause → retreat)
+        // ═══════════════════════════════════════════════════════════
+        this.hesitationPhase = 'none'       // 'approaching' | 'paused' | 'retreating' | 'none'
+        this.hesitationTimer = 0            // Time in current phase
+        this.hesitationCompleted = false    // True when full sequence detected
+        this.HESITATION_APPROACH_SPEED = -0.15  // Threshold for "approaching" (negative = toward center)
+        this.HESITATION_PAUSE_MIN = 0.3     // Min pause duration before retreat
+        this.HESITATION_RETREAT_SPEED = 0.1 // Threshold for "retreating"
+
+        // ═══════════════════════════════════════════════════════════
+        // SPIRAL DETECTION (orbit + shrinking radius)
+        // ═══════════════════════════════════════════════════════════
+        this.orbitRadius = 0                // Current distance from center
+        this.orbitRadiusPrev = 0            // Previous distance (for shrink detection)
+        this.orbitShrinkRate = 0            // Rate of radius change (negative = shrinking)
+        this.isSpiraling = false            // True when spiraling inward
+        this.SPIRAL_SHRINK_THRESHOLD = -0.08 // Threshold for "shrinking" per second
+        this.SPIRAL_MIN_ORBIT = 0.8         // Min angular velocity to be considered orbit
+
         this._bindEvents()
     }
 
@@ -146,10 +182,12 @@ export class InputManager {
 
     _onMouseDown(e) {
         this._startHold(this._normalizeCoords(e.clientX, e.clientY))
+        this._startContact()
     }
 
     _onMouseUp(e) {
         this._endHold()
+        this._endContact()
     }
 
     /**
@@ -171,6 +209,22 @@ export class InputManager {
         this.holdDuration = 0
     }
 
+    /**
+     * Start contact tracking (for tap detection)
+     */
+    _startContact() {
+        this.contactStartTime = performance.now()
+    }
+
+    /**
+     * End contact tracking (for tap detection)
+     */
+    _endContact() {
+        this.contactDuration = (performance.now() - this.contactStartTime) / 1000
+        this.justReleased = true
+        this.exitVelocity = this.velocity
+    }
+
     _onTouchStart(e) {
         e.preventDefault()
         // Only track primary touch (ignore multi-touch)
@@ -186,6 +240,7 @@ export class InputManager {
 
         // Start hold tracking
         this._startHold(coords)
+        this._startContact()
 
         // Capture touch radius/pressure
         this._updateTouchMetrics(touch)
@@ -227,6 +282,7 @@ export class InputManager {
     _onTouchEnd() {
         this.isTouching = false
         this._endHold()  // End hold tracking
+        this._endContact()  // End contact tracking
         // Decay touch metrics smoothly
         this.touchRadius = 0
         this.touchPressure = 0
@@ -389,6 +445,94 @@ export class InputManager {
             }
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // HESITATION STATE MACHINE (approach → pause → retreat)
+        // "Она грустит + зеркалит"
+        // ═══════════════════════════════════════════════════════════
+        this.hesitationCompleted = false  // Reset each frame
+        switch (this.hesitationPhase) {
+            case 'none':
+                // Looking for approach
+                if (this.approachSpeed < this.HESITATION_APPROACH_SPEED) {
+                    this.hesitationPhase = 'approaching'
+                    this.hesitationTimer = 0
+                }
+                break
+            case 'approaching':
+                this.hesitationTimer += delta
+                // Still approaching? Continue
+                if (this.approachSpeed < this.HESITATION_APPROACH_SPEED * 0.5) {
+                    // Still approaching fast, keep in phase
+                } else if (Math.abs(this.approachSpeed) < 0.05) {
+                    // Paused! Transition to paused phase
+                    this.hesitationPhase = 'paused'
+                    this.hesitationTimer = 0
+                } else if (this.approachSpeed > this.HESITATION_RETREAT_SPEED) {
+                    // Retreated too fast without pause - reset
+                    this.hesitationPhase = 'none'
+                } else if (this.hesitationTimer > 2.0) {
+                    // Too long in approach - reset
+                    this.hesitationPhase = 'none'
+                }
+                break
+            case 'paused':
+                this.hesitationTimer += delta
+                if (Math.abs(this.approachSpeed) < 0.05) {
+                    // Still paused
+                } else if (this.approachSpeed > this.HESITATION_RETREAT_SPEED) {
+                    // Started retreating!
+                    if (this.hesitationTimer >= this.HESITATION_PAUSE_MIN) {
+                        // Valid hesitation sequence complete!
+                        this.hesitationCompleted = true
+                        this.hesitationPhase = 'retreating'
+                        this.hesitationTimer = 0
+                    } else {
+                        // Pause too short - reset
+                        this.hesitationPhase = 'none'
+                    }
+                } else if (this.approachSpeed < this.HESITATION_APPROACH_SPEED) {
+                    // Started approaching again - reset
+                    this.hesitationPhase = 'approaching'
+                    this.hesitationTimer = 0
+                } else if (this.hesitationTimer > 3.0) {
+                    // Paused too long - reset
+                    this.hesitationPhase = 'none'
+                }
+                break
+            case 'retreating':
+                this.hesitationTimer += delta
+                // Stay in retreating for a bit to allow gesture to register
+                if (this.hesitationTimer > 0.5) {
+                    this.hesitationPhase = 'none'
+                }
+                break
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // SPIRAL DETECTION (orbit + shrinking radius)
+        // "Глубокий транс"
+        // ═══════════════════════════════════════════════════════════
+        this.orbitRadiusPrev = this.orbitRadius
+        this.orbitRadius = Math.sqrt(
+            this.position.x * this.position.x +
+            this.position.y * this.position.y
+        )
+        if (delta > 0.001) {
+            const instantShrink = (this.orbitRadius - this.orbitRadiusPrev) / delta
+            if (!isNaN(instantShrink) && isFinite(instantShrink)) {
+                this.orbitShrinkRate += (instantShrink - this.orbitShrinkRate) * 0.2
+            }
+        }
+        // Spiraling = orbiting + radius shrinking
+        const isOrbiting = Math.abs(this.angularVelocity) > this.SPIRAL_MIN_ORBIT
+        this.isSpiraling = isOrbiting && this.orbitShrinkRate < this.SPIRAL_SHRINK_THRESHOLD
+
+        // ═══════════════════════════════════════════════════════════
+        // RESET justReleased at end of frame (so it's true for 1 frame only)
+        // ═══════════════════════════════════════════════════════════
+        // Note: justReleased is set in _endContact, reset here after classification
+        this.justReleased = false
+
         // Store previous position AFTER calculating delta
         this.prevPosition.x = this.position.x
         this.prevPosition.y = this.position.y
@@ -442,6 +586,18 @@ export class InputManager {
     /**
      * Classify the current gesture based on metrics
      * @returns {string} gesture type
+     * 
+     * Priority order (checked in sequence):
+     * 1. idle - no movement
+     * 2. tap - short contact + low velocity (release event)
+     * 3. flick - fast exit velocity (release event)
+     * 4. poke - fast movement + sudden stop
+     * 5. spiral - orbit + shrinking radius (trance)
+     * 6. hesitation - approach → pause → retreat (sadness)
+     * 7. orbit - circular motion
+     * 8. tremble - fast + chaotic
+     * 9. stroke - slow + linear (petting)
+     * 10. moving - default
      */
     _classifyGesture() {
         const { velocity, directionalConsistency, angularVelocity } = this
@@ -451,19 +607,40 @@ export class InputManager {
         // 1. Idle - no movement
         if (velocity < this.IDLE_VELOCITY) return 'idle'
 
-        // 2. Poke - fast movement followed by sudden stop
+        // 2. Tap - short contact, low velocity on release
+        // Must check before poke! Tap is gentle, poke is aggressive
+        if (this.justReleased &&
+            this.contactDuration < this.TAP_MAX_DURATION &&
+            this.exitVelocity < this.TAP_MAX_VELOCITY) {
+            return 'tap'
+        }
+
+        // 3. Flick - fast exit from the sphere (like poke but exits screen)
+        if (this.justReleased && this.exitVelocity >= this.FLICK_MIN_EXIT_VELOCITY) {
+            return 'flick'
+        }
+
+        // 4. Poke - fast movement followed by sudden stop
         if (this.justStopped && this.recentHighVelocity) return 'poke'
 
-        // 3. Orbit - consistent circular motion
+        // 5. Spiral - orbit + shrinking radius (deep trance)
+        if (this.isSpiraling) return 'spiral'
+
+        // 6. Hesitation - completed approach → pause → retreat sequence
+        if (this.hesitationCompleted || this.hesitationPhase === 'retreating') {
+            return 'hesitation'
+        }
+
+        // 7. Orbit - consistent circular motion
         if (Math.abs(angularVelocity) > this.ORBIT_MIN_ANGULAR && velocity > 0.05) return 'orbit'
 
-        // 4. Tremble - fast and chaotic
+        // 8. Tremble - fast and chaotic
         if (velocity > this.TREMBLE_MIN_VELOCITY && directionalConsistency < this.TREMBLE_MAX_CONSISTENCY) return 'tremble'
 
-        // 5. Stroke - slow and linear (petting)
+        // 9. Stroke - slow and linear (petting)
         if (velocity < this.STROKE_MAX_VELOCITY && directionalConsistency > this.STROKE_MIN_CONSISTENCY) return 'stroke'
 
-        // 6. Default - general movement
+        // 10. Default - general movement
         return 'moving'
     }
 
@@ -504,7 +681,15 @@ export class InputManager {
             // Hold tracking (recognition / calming)
             isHolding: this.isHolding,
             holdDuration: this.holdDuration,
-            holdPosition: { ...this.holdPosition }
+            holdPosition: { ...this.holdPosition },
+
+            // New gesture tracking
+            justReleased: this.justReleased,
+            contactDuration: this.contactDuration,
+            exitVelocity: this.exitVelocity,
+            hesitationPhase: this.hesitationPhase,
+            isSpiraling: this.isSpiraling,
+            orbitShrinkRate: this.orbitShrinkRate
         }
     }
 

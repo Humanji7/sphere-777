@@ -10,6 +10,7 @@ import { ParticleSystem } from './ParticleSystem.js'
 import { Sphere } from './Sphere.js'
 import { EffectConductor } from './EffectConductor.js'
 import { SoundManager } from './SoundManager.js'
+import { SonicOrganism } from './SonicOrganism.js'
 import { Eye } from './Eye.js'
 import { MemoryManager } from './MemoryManager.js'
 import { HapticManager } from './HapticManager.js'
@@ -147,6 +148,10 @@ class App {
         this.soundManager = new SoundManager()
         this.sphere.setSoundManager(this.soundManager)
 
+        // Initialize living sound system (shares AudioContext with SoundManager)
+        this.sonicOrganism = new SonicOrganism(this.soundManager.audioContext)
+        // this.sonicOrganism.setDebug(true)  // Uncomment for debug logging
+
         // Initialize haptic feedback (Vibration API)
         this.hapticManager = new HapticManager()
         this.sphere.setHapticManager(this.hapticManager)
@@ -194,6 +199,19 @@ class App {
             // Sync eye rotation with sphere rolling
             this.eye.setSphereRotation(this.particleSystem.mesh.rotation)
             this.eye.update(delta, elapsed)
+
+            // ═══════════════════════════════════════════════════════════
+            // SONIC ORGANISM: Continuous sound synthesis every frame
+            // ═══════════════════════════════════════════════════════════
+            if (this.sonicOrganism) {
+                this.sonicOrganism.update({
+                    trustIndex: this.memoryManager.trustIndex,
+                    proximity: this.sphere.currentProximity ?? 0,
+                    colorProgress: this.sphere.currentColorProgress ?? 0,
+                    emotionalState: this.sphere.currentState ?? 'PEACE',
+                    isActive: this.inputManager.isActive
+                }, elapsed)
+            }
 
             // Dynamic bloom based on emotional state
             const colorProgress = this.sphere.currentColorProgress || 0

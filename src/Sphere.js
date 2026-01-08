@@ -110,7 +110,12 @@ export class Sphere {
             strokeCalm: 0,          // 0-1, accumulated calming from strokes
             pokeStartle: 0,         // 0-1, spike from poke (decays fast)
             orbitSync: 0,           // 0-1, breathing sync with orbit
-            trembleNervous: 0       // 0-1, accumulated nervousness
+            trembleNervous: 0,      // 0-1, accumulated nervousness
+            // New gestures (Stage 7)
+            tapPulse: 0,            // 0-1, brief pulse on tap
+            flickPush: 0,           // 0-1, push effect from flick
+            hesitationSadness: 0,   // 0-1, slow sadness from hesitation
+            spiralTrance: 0         // 0-1, deep trance from spiral
         }
 
         // Ripple effect state (poke reaction)
@@ -985,6 +990,11 @@ export class Sphere {
         reaction.pokeStartle = Math.max(0, reaction.pokeStartle - delta * 2.0)  // Fast decay
         reaction.orbitSync = Math.max(0, reaction.orbitSync - delta * 0.4)
         reaction.trembleNervous = Math.max(0, reaction.trembleNervous - delta * 0.5)
+        // New gesture decays (Stage 7)
+        reaction.tapPulse = Math.max(0, reaction.tapPulse - delta * 3.0)  // Very fast decay
+        reaction.flickPush = Math.max(0, reaction.flickPush - delta * 2.5)  // Fast decay
+        reaction.hesitationSadness = Math.max(0, reaction.hesitationSadness - delta * 0.15)  // Slow decay
+        reaction.spiralTrance = Math.max(0, reaction.spiralTrance - delta * 0.2)  // Slow decay
 
         // ═══════════════════════════════════════════════════════════
         // GESTURE REACTIONS
@@ -1072,6 +1082,90 @@ export class Sphere {
                 this.tensionTime = Math.min(0.4, this.tensionTime + delta * 0.5 * intensityModifier)
                 break
 
+            case 'tap':
+                // TAP: Brief affirmation pulse — "я тут" / "I'm here"
+                if (reaction.tapPulse < 0.1) {
+                    reaction.tapPulse = 1.0
+
+                    // Brief size pulse (15% boost)
+                    this.particles.setPulse(0.15)
+
+                    // Trigger soft glow at touch position
+                    if (this.cursorOnSphere) {
+                        this.particles.setTouchGlow(this.cursorWorldPos, 0.5)
+                    }
+
+                    // Eye briefly dilates (friendly acknowledgment)
+                    if (this.eye) {
+                        this.eye.setDilation(0.8)
+                    }
+                }
+                break
+
+            case 'flick':
+                // FLICK: Fast dismissive gesture — like poke but exits screen
+                if (reaction.flickPush < 0.1) {
+                    reaction.flickPush = 1.0
+
+                    // Record negative event (like poke)
+                    if (this.memory) this.memory.recordEvent('poke', intensityModifier * 0.8)
+
+                    // Tension spike (slightly less than poke)
+                    this.tensionTime = Math.min(0.4, this.tensionTime + 0.2 * intensityModifier)
+
+                    // Trigger ripple with push direction
+                    if (this.cursorOnSphere) {
+                        const localOrigin = this.cursorWorldPos.clone()
+                            .applyMatrix4(this.particles.mesh.matrixWorld.clone().invert())
+                        this.particles.triggerRipple(localOrigin)
+                    }
+
+                    // Create ghost trace (cold memory)
+                    if (this.memory && this.cursorOnSphere) {
+                        this.memory.createGhostTrace()
+                        this.memory.setLatestGhostTracePosition(this.cursorWorldPos)
+                    }
+                }
+                break
+
+            case 'hesitation':
+                // HESITATION: Approach → pause → retreat — sphere feels the uncertainty
+                // "Она грустит + зеркалит" — sadness + mirroring
+                reaction.hesitationSadness = Math.min(1, reaction.hesitationSadness + delta * 1.5)
+
+                // Slow down breathing (heaviness, sadness)
+                this.targetBreathSpeed = this.baseBreathSpeed * (0.5 - reaction.hesitationSadness * 0.2)
+
+                // Compress particles slightly (withdrawal)
+                const compressionAmount = reaction.hesitationSadness * 0.03
+                this.particles.setNoiseAmount(0.08 - compressionAmount)
+
+                // Eye seeks cursor (longing, wanting connection)
+                if (this.eye && this.cursorOnSphere) {
+                    this.eye.seekCursor(this.cursorWorldPos)
+                }
+                break
+
+            case 'spiral':
+                // SPIRAL: Deep trance — orbit + shrinking radius
+                // "Глубокий транс" — breathing stops, pupil max, particles pause
+                reaction.spiralTrance = Math.min(1, reaction.spiralTrance + delta * 0.8)
+
+                // Breathing stops gradually
+                this.targetBreathSpeed = this.baseBreathSpeed * (1 - reaction.spiralTrance * 0.9)
+
+                // Pupil dilates to maximum (hypnosis)
+                if (this.eye) {
+                    this.eye.setDilation(0.3 + reaction.spiralTrance * 0.7)  // 0.3 → 1.0
+                }
+
+                // Particles slow down (entering trance)
+                this.particles.setPauseFactor(reaction.spiralTrance * 0.6)
+
+                // Reduce tension (calming trance)
+                this.tensionTime = Math.max(0, this.tensionTime - delta * reaction.spiralTrance)
+                break
+
             default:
                 // Reset noise amount when not stroking
                 if (reaction.strokeCalm < 0.01) {
@@ -1120,6 +1214,24 @@ export class Sphere {
                     // Granular nervousness
                     if (reaction.trembleNervous > 0.3) {
                         this.soundManager.playGestureSound('tremble', reaction.trembleNervous)
+                    }
+                    break
+                case 'tap':
+                    // Soft bing on tap
+                    if (reaction.tapPulse > 0.8) {
+                        this.soundManager.playGestureSound('tap', 0.5)
+                    }
+                    break
+                case 'flick':
+                    // Click + whoosh on flick
+                    if (reaction.flickPush > 0.8) {
+                        this.soundManager.playGestureSound('flick', intensityModifier)
+                    }
+                    break
+                case 'spiral':
+                    // Low drone fade-in for trance
+                    if (reaction.spiralTrance > 0.3) {
+                        this.soundManager.playGestureSound('spiral', reaction.spiralTrance)
                     }
                     break
             }
