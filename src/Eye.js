@@ -12,8 +12,9 @@ import * as THREE from 'three'
  * "The eye doesn't just look — it transmits the essence of the sphere."
  */
 export class Eye {
-  constructor(sphereRadius = 1.5) {
+  constructor(sphereRadius = 1.5, sizeMultiplier = 1.0) {
     this.sphereRadius = sphereRadius
+    this.sizeMultiplier = sizeMultiplier  // Responsive sizing for mobile
 
     // Eye geometry parameters
     this.eyeRadius = 0.45
@@ -277,7 +278,7 @@ export class Eye {
       uniforms: {
         uTime: { value: 0 },
         uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
-        uSize: { value: 8.0 },
+        uSize: { value: 8.0 * this.sizeMultiplier },
         uIrisColor: { value: this.irisColor },
         uPupilColor: { value: this.pupilColor },
         uLidColor: { value: this.lidColor },
@@ -859,6 +860,15 @@ export class Eye {
     this.prevBlinkProgress = this.blinkProgress
     this.material.uniforms.uBlinkVelocity.value = blinkVelocity
     this.material.uniforms.uBlinkProgress.value = this.blinkProgress
+  }
+
+  /**
+   * Set responsive size multiplier (for mobile/orientation changes)
+   * @param {number} multiplier - 1.0 (desktop) to 1.8 (mobile)
+   */
+  setSizeMultiplier(multiplier) {
+    this.sizeMultiplier = multiplier
+    this.material.uniforms.uSize.value = 8.0 * multiplier
   }
 
   /**

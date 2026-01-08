@@ -71,6 +71,7 @@ export class Sphere {
         // DYNAMIC PARTICLE SIZE (tension-based density)
         // ═══════════════════════════════════════════════════════════
         this.currentSize = 6.0           // Current interpolated size
+        this.sizeMultiplier = 1.0        // Responsive multiplier (mobile = 1.4-1.8)
         this.sizeConfig = {
             baseSize: 6.0,               // Peace state ("breathing freely")
             maxSizeBoost: 1.5,           // +1.5 at full tension (totalMax = 7.5)
@@ -119,6 +120,9 @@ export class Sphere {
         // Sound Manager (set via setSoundManager after user interaction)
         this.soundManager = null
 
+        // Memory Manager (emotional memory / trust system)
+        this.memory = null
+
         // Debug
         this.DEBUG = false
     }
@@ -139,11 +143,44 @@ export class Sphere {
         this.eye = eye
     }
 
+    /**
+     * Set the memory manager (emotional memory system)
+     * @param {MemoryManager} memoryManager - The memory manager instance
+     */
+    setMemoryManager(memoryManager) {
+        this.memory = memoryManager
+    }
+
+    /**
+     * Set responsive size multiplier (for mobile devices)
+     * @param {number} multiplier - 1.0 (desktop) to 1.8 (mobile phones)
+     */
+    setSizeMultiplier(multiplier) {
+        this.sizeMultiplier = multiplier
+    }
+
     update(delta, elapsed) {
         const inputState = this.input.getState()
 
         // Update phase time
         this.phaseTime += delta
+
+        // Update memory with current emotional state
+        if (this.memory) {
+            this.memory.update(delta, this.currentPhase, inputState)
+
+            // Set ghost trace position in LOCAL/ORIGINAL space (match shader's aOriginalPos)
+            // The shader compares ghost trace positions against particle original positions,
+            // which are in local space before mesh rotation is applied
+            if (this.cursorOnSphere) {
+                // Transform world position to local space (undo mesh rotation)
+                const localPos = this.cursorWorldPos.clone()
+                    .applyMatrix4(this.particles.mesh.matrixWorld.clone().invert())
+                // Normalize to sphere surface (match Fibonacci distribution radius)
+                localPos.normalize().multiplyScalar(this.particles.baseRadius)
+                this.memory.setLatestGhostTracePosition(localPos)
+            }
+        }
 
         // Process current phase and check transitions
         this._processPhase(delta, inputState)
@@ -212,9 +249,10 @@ export class Sphere {
             this.tensionTime = Math.max(0, this.tensionTime - delta * 2) // Decay faster
         }
 
-        // Gradual trauma recovery in peace
+        // Gradual trauma recovery in peace (modified by trust level)
         if (this.traumaLevel > 0) {
-            this.traumaLevel = Math.max(0, this.traumaLevel - delta * 0.05)
+            const decayMod = this.memory ? this.memory.getTensionDecayModifier() : 1.0
+            this.traumaLevel = Math.max(0, this.traumaLevel - delta * 0.05 * decayMod)
         }
     }
 
@@ -273,8 +311,9 @@ export class Sphere {
         // Trigger particle evaporation (replaces old gravity-based bleeding)
         this.particles.processEvaporation(delta, this.config.bleedRate)
 
-        // Check for TRAUMA
-        if (this.bleedingTime > this.config.traumaThreshold) {
+        // Check for TRAUMA (threshold modified by trust level)
+        const thresholdMod = this.memory ? this.memory.getTraumaThresholdModifier() : 1.0
+        if (this.bleedingTime > this.config.traumaThreshold * thresholdMod) {
             this.traumaLevel = Math.min(1, this.traumaLevel + delta * 0.2)
         }
 
@@ -426,7 +465,9 @@ export class Sphere {
         // DYNAMIC uSIZE: Particles "contract" with tension
         // Philosophy: sphere "breathes freely" in peace, "contracts" under stress
         // ═══════════════════════════════════════════════════════════
-        const { baseSize, maxSizeBoost, sizeSmoothSpeed } = this.sizeConfig
+        const baseSize = this.sizeConfig.baseSize * this.sizeMultiplier
+        const maxSizeBoost = this.sizeConfig.maxSizeBoost * this.sizeMultiplier
+        const sizeSmoothSpeed = this.sizeConfig.sizeSmoothSpeed
         const targetSize = baseSize + this.currentColorProgress * maxSizeBoost
 
         // Stroke gesture accelerates return to base size
@@ -631,6 +672,9 @@ export class Sphere {
                 // CALMING: reduce tension, deepen breathing, press particles inward
                 reaction.strokeCalm = Math.min(1, reaction.strokeCalm + delta * 0.8)
 
+                // Record positive event in memory
+                if (this.memory) this.memory.recordEvent('stroke', delta)
+
                 // Slower, deeper breathing
                 this.targetBreathSpeed = this.baseBreathSpeed * (0.7 - reaction.strokeCalm * 0.2)
 
@@ -648,6 +692,9 @@ export class Sphere {
                 if (reaction.pokeStartle < 0.1) {
                     // Only trigger once per poke
                     reaction.pokeStartle = 1.0
+
+                    // Record negative event in memory
+                    if (this.memory) this.memory.recordEvent('poke', intensityModifier)
 
                     // Instant tension spike (boosted by touch intensity)
                     this.tensionTime = Math.min(0.5, this.tensionTime + 0.3 * intensityModifier)
@@ -677,6 +724,9 @@ export class Sphere {
             case 'tremble':
                 // NERVOUS: goosebumps max, quicker breathing (boosted by touch intensity)
                 reaction.trembleNervous = Math.min(1, reaction.trembleNervous + delta * 1.5 * intensityModifier)
+
+                // Record negative event in memory
+                if (this.memory) this.memory.recordEvent('tremble', delta)
 
                 // Accelerate breathing
                 this.targetBreathSpeed = this.baseBreathSpeed * (1.3 + reaction.trembleNervous * 0.4)

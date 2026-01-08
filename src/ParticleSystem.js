@@ -5,8 +5,9 @@ import * as THREE from 'three'
  * Handles breathing, attraction, bleeding, scars
  */
 export class ParticleSystem {
-  constructor(count = 5000, ghostRatio = 0.03) {
+  constructor(count = 5000, ghostRatio = 0.03, sizeMultiplier = 1.0) {
     this.count = count
+    this.sizeMultiplier = sizeMultiplier  // Responsive sizing for mobile
     this.ghostCount = Math.floor(count * ghostRatio)
     this.normalCount = count - this.ghostCount
 
@@ -34,6 +35,10 @@ export class ParticleSystem {
     this.colorTint = 1.0        // 0-1, dimming factor for tension
     this.colorHue = 0           // hue shift for tension
     this.responseLag = 1.0      // 1.0 = normal, lower = slower response
+
+    // Trust-based color modification (from MemoryManager)
+    this.peaceSaturationMod = 1.0   // 0.6 (grey) - 1.0 (normal)
+    this.peaceLightnessMod = 1.0    // 0.85 (dark) - 1.0 (normal)
 
     // Rolling physics
     this.rotationX = 0          // accumulated rotation around X axis
@@ -115,7 +120,7 @@ export class ParticleSystem {
         uColorGhost: { value: this.colorGhost },
         uColorFalling: { value: this.colorFalling },
         uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
-        uSize: { value: 6.0 },
+        uSize: { value: 6.0 * this.sizeMultiplier },
         uPauseFactor: { value: 0 },
         uColorTint: { value: 1.0 },
         uEvapFadeOutEnd: { value: 0.45 },  // phase 0-0.45 = fade out
@@ -136,7 +141,14 @@ export class ParticleSystem {
         uRippleOrigin: { value: new THREE.Vector3(0, 0, 0) },
         uRippleTime: { value: -1.0 },  // Negative = inactive
         uRippleSpeed: { value: 3.0 },  // How fast ripple expands
-        uRippleDecay: { value: 2.0 }   // How fast ripple fades
+        uRippleDecay: { value: 2.0 },   // How fast ripple fades
+        // Ghost Traces (emotional memory - scares leave visual marks)
+        uGhostTrace0Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uGhostTrace1Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uGhostTrace2Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uGhostTrace0Alpha: { value: 0.0 },
+        uGhostTrace1Alpha: { value: 0.0 },
+        uGhostTrace2Alpha: { value: 0.0 }
       },
       vertexShader: `
         attribute float aType;
@@ -164,6 +176,13 @@ export class ParticleSystem {
         uniform float uRippleTime;
         uniform float uRippleSpeed;
         uniform float uRippleDecay;
+        // Ghost Traces (emotional memory)
+        uniform vec3 uGhostTrace0Pos;
+        uniform vec3 uGhostTrace1Pos;
+        uniform vec3 uGhostTrace2Pos;
+        uniform float uGhostTrace0Alpha;
+        uniform float uGhostTrace1Alpha;
+        uniform float uGhostTrace2Alpha;
         
         varying float vType;
         varying float vSeed;
@@ -171,6 +190,7 @@ export class ParticleSystem {
         varying float vDepth;
         varying float vUnifiedCurve;
         varying float vCursorInfluence;  // 0-1, proximity to cursor
+        varying float vGhostInfluence;   // 0-1, proximity to ghost traces
         
         // ========== Simplex 3D Noise ==========
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -395,6 +415,30 @@ export class ParticleSystem {
           if (aType > 0.5 && aType < 1.5) {
             gl_PointSize *= 0.7;
           }
+          
+          // ═══════════════════════════════════════════════════════════
+          // GHOST TRACES: Particles near scare points freeze partially
+          // "She remembers where it hurt"
+          // ═══════════════════════════════════════════════════════════
+          vGhostInfluence = 0.0;
+          float ghostRadius = 0.7;  // Influence radius in world units (increased for visibility)
+          
+          // Check each ghost trace
+          if (uGhostTrace0Alpha > 0.0) {
+            float dist0 = distance(aOriginalPos, uGhostTrace0Pos);
+            float inf0 = (1.0 - smoothstep(0.0, ghostRadius, dist0)) * uGhostTrace0Alpha;
+            vGhostInfluence = max(vGhostInfluence, inf0);
+          }
+          if (uGhostTrace1Alpha > 0.0) {
+            float dist1 = distance(aOriginalPos, uGhostTrace1Pos);
+            float inf1 = (1.0 - smoothstep(0.0, ghostRadius, dist1)) * uGhostTrace1Alpha;
+            vGhostInfluence = max(vGhostInfluence, inf1);
+          }
+          if (uGhostTrace2Alpha > 0.0) {
+            float dist2 = distance(aOriginalPos, uGhostTrace2Pos);
+            float inf2 = (1.0 - smoothstep(0.0, ghostRadius, dist2)) * uGhostTrace2Alpha;
+            vGhostInfluence = max(vGhostInfluence, inf2);
+          }
         }
       `,
       fragmentShader: `
@@ -414,6 +458,7 @@ export class ParticleSystem {
         varying float vDepth;
         varying float vUnifiedCurve;
         varying float vCursorInfluence;  // 0-1, per-particle proximity
+        varying float vGhostInfluence;   // 0-1, proximity to ghost traces
         
         void main() {
           // Circular particle
@@ -493,6 +538,18 @@ export class ParticleSystem {
             color += sparkle * vec3(1.0, 0.95, 0.85);
             // Boost alpha for visible sparkle
             alpha = min(1.0, alpha + sparkle * 0.5);
+          }
+          
+          // ═══════════════════════════════════════════════════════════
+          // GHOST TRACES: Cold glow near scare points
+          // "The memory of fear lingers"
+          // ═══════════════════════════════════════════════════════════
+          if (vGhostInfluence > 0.0) {
+            // Cold blue-white tint (slightly brighter for visibility)
+            vec3 ghostColor = vec3(0.75, 0.9, 1.0);
+            color = mix(color, ghostColor, vGhostInfluence * 0.6);
+            // Stronger alpha boost for visible "frozen" effect
+            alpha = min(1.0, alpha + vGhostInfluence * 0.35);
           }
           
           gl_FragColor = vec4(color, alpha);
@@ -647,14 +704,18 @@ export class ParticleSystem {
    * 
    * Color journey: Deep Blue(240°) → Purple → Magenta → Pink/Rose → Coral/Orange → Nova Gold(45°)
    * Spans ~165° of the hue wheel, going THROUGH 0° (red) for maximum micro-tone richness
+   * 
+   * Note: First stop (PEACE baseline) is modified by peaceSaturationMod and peaceLightnessMod
+   * based on trust level from MemoryManager
    */
   setColorProgress(progress) {
     progress = Math.max(0, Math.min(1, progress))
 
     // Define color stops in HSL for precise hue control (~165° journey)
     // H values: 0=red, 0.083=orange, 0.125=gold, 0.166=yellow, 0.333=green, 0.5=cyan, 0.666=blue, 0.75=purple, 0.833=magenta
+    // First stop modified by trust-based modifiers (greyer/darker when low trust)
     const stops = [
-      { h: 0.66, s: 0.60, l: 0.50 },   // 0.00: Deep Blue (240°) — Baseline Peace
+      { h: 0.66, s: 0.60 * this.peaceSaturationMod, l: 0.50 * this.peaceLightnessMod },   // 0.00: Deep Blue (240°) — PEACE baseline (trust-modified)
       { h: 0.76, s: 0.55, l: 0.58 },   // 0.20: Purple (275°)
       { h: 0.86, s: 0.60, l: 0.55 },   // 0.40: Magenta (310°)
       { h: 0.96, s: 0.65, l: 0.55 },   // 0.60: Pink/Rose (345°)
@@ -673,6 +734,17 @@ export class ParticleSystem {
 
     const resultColor = this._lerpHSL(hsl1, hsl2, segmentT)
     this.material.uniforms.uColorNormal.value = resultColor
+  }
+
+  /**
+   * Set PEACE baseline color modification based on trust level
+   * Low trust = greyer, less saturated color ("cold" sphere)
+   * @param {number} satMod - saturation modifier 0.5-1.0 (lower = greyer)
+   * @param {number} lightMod - lightness modifier 0.8-1.0 (lower = darker)
+   */
+  setPeaceColorMod(satMod, lightMod) {
+    this.peaceSaturationMod = Math.max(0.5, Math.min(1.0, satMod))
+    this.peaceLightnessMod = Math.max(0.8, Math.min(1.0, lightMod))
   }
 
   /**
@@ -773,6 +845,33 @@ export class ParticleSystem {
   }
 
   /**
+   * Set ghost traces for emotional memory visualization
+   * @param {Array} traces - [{position: THREE.Vector3, alpha: number}]
+   */
+  setGhostTraces(traces) {
+    const uniforms = this.material.uniforms
+
+    // Reset all traces first
+    uniforms.uGhostTrace0Alpha.value = 0.0
+    uniforms.uGhostTrace1Alpha.value = 0.0
+    uniforms.uGhostTrace2Alpha.value = 0.0
+
+    // Set up to 3 traces
+    if (traces.length > 0) {
+      uniforms.uGhostTrace0Pos.value.copy(traces[0].position)
+      uniforms.uGhostTrace0Alpha.value = traces[0].alpha
+    }
+    if (traces.length > 1) {
+      uniforms.uGhostTrace1Pos.value.copy(traces[1].position)
+      uniforms.uGhostTrace1Alpha.value = traces[1].alpha
+    }
+    if (traces.length > 2) {
+      uniforms.uGhostTrace2Pos.value.copy(traces[2].position)
+      uniforms.uGhostTrace2Alpha.value = traces[2].alpha
+    }
+  }
+
+  /**
    * Set noise amount (for stroke calming effect)
    * @param {number} amount - noise amplitude
    */
@@ -866,6 +965,16 @@ export class ParticleSystem {
    */
   applyScars() {
     // Scars are now applied during evaporation teleport phase
+  }
+
+  /**
+   * Set responsive size multiplier (for mobile/orientation changes)
+   * @param {number} multiplier - 1.0 (desktop) to 1.8 (mobile)
+   */
+  setSizeMultiplier(multiplier) {
+    this.sizeMultiplier = multiplier
+    // Note: actual uSize value is managed by Sphere.js during updates
+    // This stores the multiplier for reference
   }
 
   update(delta, time) {

@@ -11,6 +11,7 @@ import { Sphere } from './Sphere.js'
 import { EffectConductor } from './EffectConductor.js'
 import { SoundManager } from './SoundManager.js'
 import { Eye } from './Eye.js'
+import { MemoryManager } from './MemoryManager.js'
 
 /**
  * Main application entry point
@@ -23,12 +24,25 @@ class App {
 
         this.isStarted = false
         this.clock = new THREE.Clock()
+        this.sizeMultiplier = 1.0  // Responsive size for mobile
 
         this._initThree()
         this._initPostProcessing()
         this._initModules()
         this._bindEvents()
         this._animate()
+    }
+
+    /**
+     * Calculate responsive size multiplier based on screen width
+     * Mobile devices need larger particles for visibility and touch
+     */
+    _getDeviceSizeMultiplier() {
+        const width = window.innerWidth
+        // Breakpoints: < 480px = 1.8x (phones), < 768px = 1.4x (tablets), else = 1.0x
+        if (width < 480) return 1.8
+        if (width < 768) return 1.4
+        return 1.0
     }
 
     _initThree() {
@@ -86,18 +100,26 @@ class App {
         const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
         const particleCount = isMobile ? 2000 : 5000
 
-        // Particle system
-        this.particleSystem = new ParticleSystem(particleCount, 0.03)
+        // Calculate responsive size multiplier
+        this.sizeMultiplier = this._getDeviceSizeMultiplier()
+
+        // Particle system (with size multiplier for mobile)
+        this.particleSystem = new ParticleSystem(particleCount, 0.03, this.sizeMultiplier)
         this.scene.add(this.particleSystem.getMesh())
 
-        // Eye (organic particle-based)
-        this.eye = new Eye(this.particleSystem.baseRadius)
+        // Eye (organic particle-based, with size multiplier)
+        this.eye = new Eye(this.particleSystem.baseRadius, this.sizeMultiplier)
         this.scene.add(this.eye.getMesh())
 
         // Sphere orchestrator (emotional state machine)
         this.sphere = new Sphere(this.particleSystem, this.inputManager, this.camera)
+        this.sphere.setSizeMultiplier(this.sizeMultiplier)  // Apply responsive sizing
         this.sphere.setEye(this.eye)  // Connect eye to emotional system
         // this.sphere.setDebug(true)  // Uncomment for debug logging
+
+        // Memory Manager (emotional memory / trust system)
+        this.memoryManager = new MemoryManager()
+        this.sphere.setMemoryManager(this.memoryManager)
 
         // Effect Conductor ("Living Chaos" system)
         this.effectConductor = new EffectConductor()
@@ -140,6 +162,15 @@ class App {
 
         // Update particle size uniform
         this.particleSystem.material.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2)
+
+        // Recalculate responsive size multiplier (for orientation changes)
+        const newMultiplier = this._getDeviceSizeMultiplier()
+        if (newMultiplier !== this.sizeMultiplier) {
+            this.sizeMultiplier = newMultiplier
+            this.sphere.setSizeMultiplier(newMultiplier)
+            this.eye.setSizeMultiplier(newMultiplier)
+            this.particleSystem.setSizeMultiplier(newMultiplier)
+        }
     }
 
     _animate() {
@@ -174,6 +205,13 @@ class App {
 
             // Chromatic aberration: intensity 0-1 → amount 0-0.008
             this.rgbShiftPass.uniforms.amount.value = fx.chromaticAberration * 0.008
+
+            // Memory Manager: Apply trust-based visual effects
+            const colorMod = this.memoryManager.getPeaceColorMod()
+            this.particleSystem.setPeaceColorMod(colorMod.saturationMod, colorMod.lightnessMod)
+
+            const ghostTraces = this.memoryManager.getActiveGhostTraces()
+            this.particleSystem.setGhostTraces(ghostTraces)
         } else {
             // Before start - just breathe
             this.particleSystem.update(delta, elapsed)
@@ -185,6 +223,7 @@ class App {
     }
 
     dispose() {
+        this.memoryManager.dispose()
         this.particleSystem.dispose()
         this.inputManager.dispose()
         this.renderer.dispose()
