@@ -1,8 +1,10 @@
 /**
  * Sphere.js — Emotional Response Orchestrator
  * 
- * Manages 6 emotional phases creating dialogue between user and sphere:
+ * Manages 7 emotional phases creating dialogue between user and sphere:
  * PEACE → LISTENING → TENSION → BLEEDING → TRAUMA → HEALING
+ *                                                  ↑
+ *                              RECOGNITION ────────┘ (hold gesture)
  */
 
 import * as THREE from 'three'
@@ -14,7 +16,8 @@ export const PHASE = {
     TENSION: 'tension',       // Breath quickens before bleeding
     BLEEDING: 'bleeding',     // Particle detachment with hesitation
     TRAUMA: 'trauma',         // Memory of pain (slower response)
-    HEALING: 'healing'        // Gradual return to deeper breath
+    HEALING: 'healing',       // Gradual return to deeper breath
+    RECOGNITION: 'recognition' // Hold gesture — "she heard, she understood"
 }
 
 export class Sphere {
@@ -117,6 +120,20 @@ export class Sphere {
             startTime: 0
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // RECOGNITION PHASE (hold gesture response)
+        // "Пауза. Узнавание." — patient presence calms and awakens
+        // ═══════════════════════════════════════════════════════════
+        this.recognitionConfig = {
+            pauseDuration: 0.4,       // Phase 1: everything freezes
+            recognitionDuration: 0.8, // Phase 2: understanding
+            holdThreshold: 0.5,       // Min hold time to trigger
+            calmingRate: 0.3          // How fast hold calms trauma (per sec)
+        }
+        this.recognitionTouchPos = new THREE.Vector3()  // Where they touched
+        this.recognitionProgress = 0    // 0-1 for animation
+        this.wasInRecognition = false   // To detect exit from recognition
+
         // Sound Manager (set via setSoundManager after user interaction)
         this.soundManager = null
 
@@ -185,6 +202,32 @@ export class Sphere {
             }
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // HOLD-BASED CALMING & RECOGNITION TRIGGER
+        // "Терпеливое присутствие" — patient presence can calm from any phase
+        // ═══════════════════════════════════════════════════════════
+        const { holdDuration, isHolding } = inputState
+
+        if (isHolding && this.cursorOnSphere && holdDuration > 0) {
+            // Gradual calming while holding (even outside RECOGNITION phase)
+            // The longer you hold, the more effective
+            const calmingRate = this.recognitionConfig.calmingRate
+            const calmingAmount = delta * calmingRate * Math.min(holdDuration, 3.0)
+
+            this.traumaLevel = Math.max(0, this.traumaLevel - calmingAmount * 0.5)
+            this.tensionTime = Math.max(0, this.tensionTime - calmingAmount)
+
+            // Trigger RECOGNITION if held long enough and not already in it
+            if (holdDuration > this.recognitionConfig.holdThreshold &&
+                this.currentPhase !== PHASE.RECOGNITION &&
+                this.traumaLevel < 0.5) {  // Can't recognize while in deep trauma
+
+                // Store touch position for gaze lock and glow
+                this.recognitionTouchPos.copy(this.cursorWorldPos)
+                this._transitionTo(PHASE.RECOGNITION)
+            }
+        }
+
         // Process current phase and check transitions
         this._processPhase(delta, inputState)
 
@@ -222,6 +265,10 @@ export class Sphere {
 
             case PHASE.HEALING:
                 this._processHealing(delta, inputState)
+                break
+
+            case PHASE.RECOGNITION:
+                this._processRecognition(delta, inputState)
                 break
         }
     }
@@ -373,6 +420,127 @@ export class Sphere {
             this.healingProgress = 0
             this._transitionTo(PHASE.PEACE)
         }
+    }
+
+    /**
+     * Process RECOGNITION phase — hold gesture response
+     * "Пауза. Узнавание." — patient presence calms and awakens
+     */
+    _processRecognition(delta, inputState) {
+        const cfg = this.recognitionConfig
+        const t = this.phaseTime
+        const { holdDuration, isHolding } = inputState
+
+        // ═══════════════════════════════════════════════════════════
+        // ФАЗА 1: ПАУЗА (0 - pauseDuration)
+        // "Она услышала" — everything freezes
+        // ═══════════════════════════════════════════════════════════
+        if (t < cfg.pauseDuration) {
+            const pauseProgress = t / cfg.pauseDuration  // 0 → 1
+
+            // Breathing stops
+            this.particles.setBreathSpeed(this.baseBreathSpeed * (1 - pauseProgress))
+
+            // Particles freeze (via pauseFactor)
+            this.particles.setPauseFactor(pauseProgress)
+
+            // Eye locks on touch point
+            if (this.eye) {
+                this.eye.lockGaze(this.recognitionTouchPos)
+            }
+
+            // Sound: ambient fades out, recognition hum starts
+            if (this.soundManager) {
+                this.soundManager.setAmbientIntensity(1 - pauseProgress)
+                // Start recognition hum at the beginning of pause
+                if (pauseProgress < 0.1) {
+                    this.soundManager.playRecognitionHum()
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // ФАЗА 2: УЗНАВАНИЕ (pauseDuration - pauseDuration + recognitionDuration)
+        // "Она поняла" — pupil dilates, glow, pulsation
+        // ═══════════════════════════════════════════════════════════
+        else if (t < cfg.pauseDuration + cfg.recognitionDuration) {
+            const recogT = (t - cfg.pauseDuration) / cfg.recognitionDuration  // 0 → 1
+            this.recognitionProgress = recogT
+
+            // Pupil dilates (0.3 → 1.0)
+            if (this.eye) {
+                this.eye.setDilation(0.3 + recogT * 0.7)
+            }
+
+            // Touch glow around touch point
+            this.particles.setTouchGlow(this.recognitionTouchPos, recogT)
+
+            // Sound: recognition hum intensifies
+            if (this.soundManager) {
+                this.soundManager.setRecognitionIntensity(recogT)
+            }
+
+            // Pulsation (heartbeat, ~2 Hz)
+            const pulse = Math.sin(t * Math.PI * 4) * 0.5 + 0.5  // 0-1 oscillating
+            this.particles.setPulse(pulse * recogT * 0.3)  // Max 30% size boost
+
+            // Continue calming trauma while holding
+            if (isHolding) {
+                const calmingAmount = delta * cfg.calmingRate * (1 + holdDuration * 0.5)
+                this.traumaLevel = Math.max(0, this.traumaLevel - calmingAmount)
+                this.tensionTime = Math.max(0, this.tensionTime - calmingAmount * 2)
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // EXIT: If hold released or phases complete → return to PEACE/HEALING
+        // ═══════════════════════════════════════════════════════════
+        if (!isHolding) {
+            // Released — graceful exit
+            this._exitRecognition()
+            return
+        }
+
+        // If phases complete but still holding — stay in recognition (loop phase 2)
+        if (t >= cfg.pauseDuration + cfg.recognitionDuration) {
+            // Continue calming while holding
+            const calmingAmount = delta * cfg.calmingRate * (1 + holdDuration * 0.5)
+            this.traumaLevel = Math.max(0, this.traumaLevel - calmingAmount)
+            this.tensionTime = Math.max(0, this.tensionTime - calmingAmount * 2)
+
+            // Keep pulsating
+            const pulse = Math.sin(t * Math.PI * 4) * 0.5 + 0.5
+            this.particles.setPulse(pulse * 0.3)
+        }
+    }
+
+    /**
+     * Clean exit from RECOGNITION phase
+     */
+    _exitRecognition() {
+        // Clear glow and pulse
+        this.particles.clearTouchGlow()
+        this.particles.setPulse(0)
+
+        // Stop recognition hum
+        if (this.soundManager) {
+            this.soundManager.stopRecognitionHum()
+        }
+
+        // Unlock eye gaze
+        if (this.eye) {
+            this.eye.unlockGaze()
+        }
+
+        // Return to appropriate phase
+        if (this.traumaLevel > 0.2) {
+            this._transitionTo(PHASE.HEALING)
+        } else {
+            this._transitionTo(PHASE.PEACE)
+        }
+
+        this.recognitionProgress = 0
+        this.wasInRecognition = false
     }
 
     _transitionTo(newPhase) {

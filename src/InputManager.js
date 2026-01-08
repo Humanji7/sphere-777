@@ -97,14 +97,30 @@ export class InputManager {
         this.TREMBLE_MIN_VELOCITY = 0.18
         this.TREMBLE_MAX_CONSISTENCY = 0.35
 
+        // ═══════════════════════════════════════════════════════════
+        // HOLD DETECTION (for recognition / calming)
+        // Hold = patient presence, requires intention
+        // ═══════════════════════════════════════════════════════════
+        this.holdStartTime = 0              // When hold started (ms)
+        this.holdPosition = { x: 0, y: 0 }  // Where hold started
+        this.isHolding = false              // Currently holding?
+        this.holdDuration = 0               // How long held (seconds)
+        this.HOLD_THRESHOLD = 0.5           // Seconds to activate hold
+        this.HOLD_MAX_DRIFT = 0.08          // Max movement to keep hold valid
+
         this._bindEvents()
     }
 
     _bindEvents() {
         // Mouse events
         this.domElement.addEventListener('mousemove', this._onMouseMove.bind(this))
+        this.domElement.addEventListener('mousedown', this._onMouseDown.bind(this))
+        this.domElement.addEventListener('mouseup', this._onMouseUp.bind(this))
         this.domElement.addEventListener('mouseenter', () => this.isActive = true)
-        this.domElement.addEventListener('mouseleave', () => this.isActive = false)
+        this.domElement.addEventListener('mouseleave', () => {
+            this.isActive = false
+            this._endHold()  // End hold when leaving
+        })
 
         // Touch events
         this.domElement.addEventListener('touchstart', this._onTouchStart.bind(this), { passive: false })
@@ -128,6 +144,33 @@ export class InputManager {
         this.isActive = true
     }
 
+    _onMouseDown(e) {
+        this._startHold(this._normalizeCoords(e.clientX, e.clientY))
+    }
+
+    _onMouseUp(e) {
+        this._endHold()
+    }
+
+    /**
+     * Start hold tracking
+     * @param {Object} coords - Normalized position {x, y}
+     */
+    _startHold(coords) {
+        this.holdStartTime = performance.now()
+        this.holdPosition = { ...coords }
+        this.isHolding = true
+        this.holdDuration = 0
+    }
+
+    /**
+     * End hold tracking
+     */
+    _endHold() {
+        this.isHolding = false
+        this.holdDuration = 0
+    }
+
     _onTouchStart(e) {
         e.preventDefault()
         // Only track primary touch (ignore multi-touch)
@@ -140,6 +183,9 @@ export class InputManager {
         const coords = this._normalizeCoords(touch.clientX, touch.clientY)
         this.position.x = coords.x
         this.position.y = coords.y
+
+        // Start hold tracking
+        this._startHold(coords)
 
         // Capture touch radius/pressure
         this._updateTouchMetrics(touch)
@@ -180,6 +226,7 @@ export class InputManager {
 
     _onTouchEnd() {
         this.isTouching = false
+        this._endHold()  // End hold tracking
         // Decay touch metrics smoothly
         this.touchRadius = 0
         this.touchPressure = 0
@@ -321,6 +368,27 @@ export class InputManager {
             this.strokeZoneDuration = 0
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // HOLD TRACKING (for recognition / calming)
+        // Hold = patient presence, finger stays still
+        // ═══════════════════════════════════════════════════════════
+        if (this.isHolding) {
+            const holdDrift = Math.sqrt(
+                Math.pow(this.position.x - this.holdPosition.x, 2) +
+                Math.pow(this.position.y - this.holdPosition.y, 2)
+            )
+
+            if (holdDrift < this.HOLD_MAX_DRIFT) {
+                // Still holding in place — accumulate duration
+                this.holdDuration = (performance.now() - this.holdStartTime) / 1000
+            } else {
+                // Drifted too far — reset hold to new position
+                this.holdStartTime = performance.now()
+                this.holdPosition = { ...this.position }
+                this.holdDuration = 0
+            }
+        }
+
         // Store previous position AFTER calculating delta
         this.prevPosition.x = this.position.x
         this.prevPosition.y = this.position.y
@@ -431,7 +499,12 @@ export class InputManager {
             // Deep Interaction metrics
             approachSpeed: this.approachSpeed,
             hoverDuration: this.hoverDuration,
-            strokeZoneDuration: this.strokeZoneDuration
+            strokeZoneDuration: this.strokeZoneDuration,
+
+            // Hold tracking (recognition / calming)
+            isHolding: this.isHolding,
+            holdDuration: this.holdDuration,
+            holdPosition: { ...this.holdPosition }
         }
     }
 

@@ -38,6 +38,10 @@ export class Eye {
     this.nextBlinkTime = 3 + Math.random() * 4
     this.prevBlinkProgress = 0  // For velocity calculation
 
+    // Gaze lock (for RECOGNITION phase)
+    this.gazeLocked = false
+    this.lockedGazeTarget = null
+
     // Emotional states
     this.tension = 0
     this.isSleeping = false
@@ -679,6 +683,27 @@ export class Eye {
   }
 
   /**
+   * Lock gaze on a specific point (for RECOGNITION phase)
+   * Eye stops normal tracking and stares at this point
+   * @param {THREE.Vector3} worldPos - position to lock gaze on
+   */
+  lockGaze(worldPos) {
+    this.gazeLocked = true
+    this.lockedGazeTarget = worldPos.clone()
+
+    // Immediately look at the locked position
+    this.lookAt(this.lockedGazeTarget)
+  }
+
+  /**
+   * Unlock gaze, return to normal cursor tracking
+   */
+  unlockGaze() {
+    this.gazeLocked = false
+    this.lockedGazeTarget = null
+  }
+
+  /**
    * Set pupil dilation
    */
   setDilation(amount) {
@@ -780,9 +805,15 @@ export class Eye {
     this.material.uniforms.uIrisRotation.value = this.irisRotation
 
     // ═══════════════════════════════════════════════════════════
-    // GAZE SMOOTHING
+    // GAZE SMOOTHING (with lock support for RECOGNITION phase)
     // ═══════════════════════════════════════════════════════════
-    const gazeSpeed = 5.0 - this.tension * 2.0
+
+    // If gaze is locked, slowly maintain lock on target
+    if (this.gazeLocked && this.lockedGazeTarget) {
+      this.lookAt(this.lockedGazeTarget)
+    }
+
+    const gazeSpeed = this.gazeLocked ? 3.0 : (5.0 - this.tension * 2.0)
     this.gazeOffset.x = THREE.MathUtils.lerp(this.gazeOffset.x, this.targetGaze.x, delta * gazeSpeed)
     this.gazeOffset.y = THREE.MathUtils.lerp(this.gazeOffset.y, this.targetGaze.y, delta * gazeSpeed)
     this.material.uniforms.uGazeOffset.value.copy(this.gazeOffset)

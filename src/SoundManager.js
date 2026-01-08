@@ -27,6 +27,17 @@ export class SoundManager {
         this._initAmbientHum()
 
         // ═══════════════════════════════════════════════════════════
+        // RECOGNITION HUM (Hold gesture — "she hears, she understands")
+        // Low, dark, rising drone that intensifies during RECOGNITION phase
+        // ═══════════════════════════════════════════════════════════
+        this.recognitionOsc1 = null
+        this.recognitionOsc2 = null
+        this.recognitionGain = null
+        this.recognitionLFO = null
+        this.recognitionLFOGain = null
+        this.recognitionActive = false
+
+        // ═══════════════════════════════════════════════════════════
         // GESTURE EFFECTS (one-shot sounds)
         // ═══════════════════════════════════════════════════════════
         this.gestureGain = this.audioContext.createGain()
@@ -285,6 +296,129 @@ export class SoundManager {
 
         noise.start(now)
         noise.stop(now + 0.5)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // RECOGNITION HUM: Low rising drone for RECOGNITION phase
+    // "Она услышала" — deep, mystical presence
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Start recognition hum — low dark drone
+     * Called when entering RECOGNITION phase
+     */
+    playRecognitionHum() {
+        if (this.recognitionActive) return
+        this.recognitionActive = true
+
+        const now = this.audioContext.currentTime
+
+        // Create two slightly detuned oscillators for rich drone
+        this.recognitionOsc1 = this.audioContext.createOscillator()
+        this.recognitionOsc1.type = 'sine'
+        this.recognitionOsc1.frequency.value = 40  // Very low
+
+        this.recognitionOsc2 = this.audioContext.createOscillator()
+        this.recognitionOsc2.type = 'triangle'  // Slightly brighter
+        this.recognitionOsc2.frequency.value = 42  // Slight detune for beating
+
+        // LFO for organic pulsation (slow throb, ~0.5 Hz)
+        this.recognitionLFO = this.audioContext.createOscillator()
+        this.recognitionLFO.type = 'sine'
+        this.recognitionLFO.frequency.value = 0.5
+
+        this.recognitionLFOGain = this.audioContext.createGain()
+        this.recognitionLFOGain.gain.value = 5  // ±5Hz wobble
+
+        // Main gain envelope (fades in)
+        this.recognitionGain = this.audioContext.createGain()
+        this.recognitionGain.gain.setValueAtTime(0, now)
+        this.recognitionGain.gain.linearRampToValueAtTime(0.2, now + 0.3)
+
+        // Connect: LFO → both oscillator frequencies
+        this.recognitionLFO.connect(this.recognitionLFOGain)
+        this.recognitionLFOGain.connect(this.recognitionOsc1.frequency)
+        this.recognitionLFOGain.connect(this.recognitionOsc2.frequency)
+
+        // Connect: oscillators → gain → master
+        this.recognitionOsc1.connect(this.recognitionGain)
+        this.recognitionOsc2.connect(this.recognitionGain)
+        this.recognitionGain.connect(this.masterGain)
+
+        // Start
+        this.recognitionOsc1.start(now)
+        this.recognitionOsc2.start(now)
+        this.recognitionLFO.start(now)
+    }
+
+    /**
+     * Set recognition hum intensity
+     * @param {number} intensity - 0-1, controls pitch rise and volume
+     */
+    setRecognitionIntensity(intensity) {
+        if (!this.recognitionActive || !this.recognitionOsc1) return
+
+        const now = this.audioContext.currentTime
+        const clampedIntensity = Math.max(0, Math.min(1, intensity))
+
+        // Frequency rises with intensity (40Hz → 80Hz)
+        const targetFreq1 = 40 + clampedIntensity * 40
+        const targetFreq2 = 42 + clampedIntensity * 40
+
+        this.recognitionOsc1.frequency.linearRampToValueAtTime(targetFreq1, now + 0.1)
+        this.recognitionOsc2.frequency.linearRampToValueAtTime(targetFreq2, now + 0.1)
+
+        // Volume also rises (0.2 → 0.4)
+        const targetVolume = 0.2 + clampedIntensity * 0.2
+        this.recognitionGain.gain.linearRampToValueAtTime(targetVolume, now + 0.1)
+
+        // LFO speed increases (0.5 → 2 Hz) — heartbeat quickens
+        const targetLFOSpeed = 0.5 + clampedIntensity * 1.5
+        this.recognitionLFO.frequency.linearRampToValueAtTime(targetLFOSpeed, now + 0.1)
+    }
+
+    /**
+     * Stop recognition hum with graceful fade-out
+     * Called when exiting RECOGNITION phase
+     */
+    stopRecognitionHum() {
+        if (!this.recognitionActive) return
+
+        const now = this.audioContext.currentTime
+        const fadeTime = 0.3
+
+        // Fade out
+        if (this.recognitionGain) {
+            this.recognitionGain.gain.linearRampToValueAtTime(0, now + fadeTime)
+        }
+
+        // Schedule stop after fade
+        setTimeout(() => {
+            if (this.recognitionOsc1) {
+                this.recognitionOsc1.stop()
+                this.recognitionOsc1.disconnect()
+                this.recognitionOsc1 = null
+            }
+            if (this.recognitionOsc2) {
+                this.recognitionOsc2.stop()
+                this.recognitionOsc2.disconnect()
+                this.recognitionOsc2 = null
+            }
+            if (this.recognitionLFO) {
+                this.recognitionLFO.stop()
+                this.recognitionLFO.disconnect()
+                this.recognitionLFO = null
+            }
+            if (this.recognitionLFOGain) {
+                this.recognitionLFOGain.disconnect()
+                this.recognitionLFOGain = null
+            }
+            if (this.recognitionGain) {
+                this.recognitionGain.disconnect()
+                this.recognitionGain = null
+            }
+            this.recognitionActive = false
+        }, fadeTime * 1000 + 50)
     }
 
     /**

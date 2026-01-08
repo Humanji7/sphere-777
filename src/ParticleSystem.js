@@ -155,7 +155,11 @@ export class ParticleSystem {
         uWarmTrace2Pos: { value: new THREE.Vector3(0, 0, 0) },
         uWarmTrace0Alpha: { value: 0.0 },
         uWarmTrace1Alpha: { value: 0.0 },
-        uWarmTrace2Alpha: { value: 0.0 }
+        uWarmTrace2Alpha: { value: 0.0 },
+        // Touch Glow (RECOGNITION phase - hold gesture)
+        uTouchGlowPos: { value: new THREE.Vector3(0, 0, 10) },  // Far away by default
+        uTouchGlowIntensity: { value: 0.0 },
+        uPulse: { value: 0.0 }  // Heartbeat pulsation (0-1)
       },
       vertexShader: `
         attribute float aType;
@@ -197,6 +201,10 @@ export class ParticleSystem {
         uniform float uWarmTrace0Alpha;
         uniform float uWarmTrace1Alpha;
         uniform float uWarmTrace2Alpha;
+        // Touch Glow (RECOGNITION phase)
+        uniform vec3 uTouchGlowPos;
+        uniform float uTouchGlowIntensity;
+        uniform float uPulse;
         
         varying float vType;
         varying float vSeed;
@@ -206,6 +214,7 @@ export class ParticleSystem {
         varying float vCursorInfluence;  // 0-1, proximity to cursor
         varying float vGhostInfluence;   // 0-1, proximity to ghost traces
         varying float vWarmInfluence;    // 0-1, proximity to warm traces
+        varying float vTouchGlow;        // 0-1, glow for RECOGNITION phase
         
         // ========== Simplex 3D Noise ==========
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -478,6 +487,26 @@ export class ParticleSystem {
             float inf2 = (1.0 - smoothstep(0.0, warmRadius, dist2)) * uWarmTrace2Alpha;
             vWarmInfluence = max(vWarmInfluence, inf2);
           }
+          
+          // ═══════════════════════════════════════════════════════════
+          // TOUCH GLOW: "She sees where you touched" (RECOGNITION phase)
+          // ═══════════════════════════════════════════════════════════
+          vTouchGlow = 0.0;
+          if (uTouchGlowIntensity > 0.0) {
+            float touchRadius = 0.5;  // Smaller radius for focused glow
+            float touchDist = distance(aOriginalPos, uTouchGlowPos);
+            vTouchGlow = (1.0 - smoothstep(0.0, touchRadius, touchDist)) * uTouchGlowIntensity;
+            
+            // Boost size slightly near touch point
+            gl_PointSize *= 1.0 + vTouchGlow * 0.3;
+          }
+          
+          // ═══════════════════════════════════════════════════════════
+          // PULSE: Heartbeat pulsation during RECOGNITION
+          // ═══════════════════════════════════════════════════════════
+          if (uPulse > 0.0) {
+            gl_PointSize *= 1.0 + uPulse;
+          }
         }
       `,
       fragmentShader: `
@@ -499,6 +528,7 @@ export class ParticleSystem {
         varying float vCursorInfluence;  // 0-1, per-particle proximity
         varying float vGhostInfluence;   // 0-1, proximity to ghost traces
         varying float vWarmInfluence;    // 0-1, proximity to warm traces
+        varying float vTouchGlow;        // 0-1, glow for RECOGNITION phase
         
         void main() {
           // Circular particle
@@ -602,6 +632,18 @@ export class ParticleSystem {
             color = mix(color, warmColor, vWarmInfluence * 0.75);
             // Strong alpha boost for dramatic visibility
             alpha = min(1.0, alpha + vWarmInfluence * 0.5);
+          }
+          
+          // ═══════════════════════════════════════════════════════════
+          // TOUCH GLOW: "She sees you" (RECOGNITION phase)
+          // Soft white glow where you're touching
+          // ═══════════════════════════════════════════════════════════
+          if (vTouchGlow > 0.0) {
+            // Soft warm white glow
+            vec3 touchColor = vec3(1.0, 0.95, 0.9);
+            color = mix(color, touchColor, vTouchGlow * 0.6);
+            // Alpha boost for visibility
+            alpha = min(1.0, alpha + vTouchGlow * 0.4);
           }
           
           gl_FragColor = vec4(color, alpha);
@@ -948,6 +990,42 @@ export class ParticleSystem {
       uniforms.uWarmTrace2Pos.value.copy(traces[2].position)
       uniforms.uWarmTrace2Alpha.value = traces[2].alpha
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // RECOGNITION PHASE EFFECTS (Touch Glow & Pulse)
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Set touch glow effect for RECOGNITION phase
+   * @param {THREE.Vector3} worldPos - Position to glow around (world space)
+   * @param {number} intensity - 0-1 glow intensity
+   */
+  setTouchGlow(worldPos, intensity) {
+    // Transform to local space (undo mesh rotation)
+    const localPos = worldPos.clone()
+      .applyMatrix4(this.mesh.matrixWorld.clone().invert())
+    // Normalize to sphere surface
+    localPos.normalize().multiplyScalar(this.baseRadius)
+
+    this.material.uniforms.uTouchGlowPos.value.copy(localPos)
+    this.material.uniforms.uTouchGlowIntensity.value = Math.max(0, Math.min(1, intensity))
+  }
+
+  /**
+   * Set pulse amount for RECOGNITION phase heartbeat effect
+   * @param {number} amount - 0-1, percentage of size boost
+   */
+  setPulse(amount) {
+    this.material.uniforms.uPulse.value = Math.max(0, Math.min(1, amount))
+  }
+
+  /**
+   * Clear touch glow and pulse effects
+   */
+  clearTouchGlow() {
+    this.material.uniforms.uTouchGlowIntensity.value = 0
+    this.material.uniforms.uPulse.value = 0
   }
 
   /**
