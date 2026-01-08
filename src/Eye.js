@@ -366,7 +366,7 @@ export class Eye {
           // GAZE: Shift iris and pupil based on cursor direction
           // ═══════════════════════════════════════════════════════════
           if (aType < 1.5) {
-            float maxGazeShift = 0.08;
+            float maxGazeShift = 0.4;  // Large value for visible gaze
             vec3 gazeShift = vec3(
               uGazeOffset.x * maxGazeShift,
               uGazeOffset.y * maxGazeShift,
@@ -613,15 +613,29 @@ export class Eye {
 
   /**
    * Set target gaze direction
+   * Transforms cursor world position into eye-local gaze offset,
+   * accounting for sphere rotation
    */
   lookAt(cursorWorldPos) {
+    // Eye center in world space (north pole after sphere rotation)
     const eyeCenter = new THREE.Vector3(0, 0, this.sphereRadius)
     eyeCenter.applyEuler(this.sphereRotation)
 
+    // Direction from eye center to cursor (in world space)
     const toCursor = cursorWorldPos.clone().sub(eyeCenter).normalize()
 
-    this.targetGaze.x = THREE.MathUtils.clamp(toCursor.x * 2, -1, 1)
-    this.targetGaze.y = THREE.MathUtils.clamp(toCursor.y * 2, -1, 1)
+    // Transform direction into eye's local coordinate space
+    // Create inverse rotation matrix from sphere rotation
+    const inverseMatrix = new THREE.Matrix4()
+    inverseMatrix.makeRotationFromEuler(this.sphereRotation)
+    inverseMatrix.invert()
+
+    // Apply inverse rotation to get local direction
+    const localDir = toCursor.clone().applyMatrix4(inverseMatrix)
+
+    // X = left/right gaze, Y = up/down gaze (in eye's local space)
+    this.targetGaze.x = THREE.MathUtils.clamp(localDir.x * 2, -1, 1)
+    this.targetGaze.y = THREE.MathUtils.clamp(localDir.y * 2, -1, 1)
   }
 
   /**
@@ -637,9 +651,15 @@ export class Eye {
     // Direction FROM cursor (opposite of lookAt)
     const awayCursor = eyeCenter.clone().sub(avoidPos).normalize()
 
+    // Transform to eye's local space
+    const inverseMatrix = new THREE.Matrix4()
+    inverseMatrix.makeRotationFromEuler(this.sphereRotation)
+    inverseMatrix.invert()
+    const localDir = awayCursor.clone().applyMatrix4(inverseMatrix)
+
     // Blend between current gaze and avoidance direction
-    const avoidX = THREE.MathUtils.clamp(awayCursor.x * 1.5, -1, 1)
-    const avoidY = THREE.MathUtils.clamp(awayCursor.y * 1.5, -1, 1)
+    const avoidX = THREE.MathUtils.clamp(localDir.x * 1.5, -1, 1)
+    const avoidY = THREE.MathUtils.clamp(localDir.y * 1.5, -1, 1)
 
     // Stronger avoidance with higher intensity
     const blendFactor = intensity * 0.7  // Max 70% avoidance
@@ -664,9 +684,15 @@ export class Eye {
 
     const toCursor = targetPos.clone().sub(eyeCenter).normalize()
 
+    // Transform to eye's local space
+    const inverseMatrix = new THREE.Matrix4()
+    inverseMatrix.makeRotationFromEuler(this.sphereRotation)
+    inverseMatrix.invert()
+    const localDir = toCursor.clone().applyMatrix4(inverseMatrix)
+
     // Amplified gaze (more "eager" to look)
-    this.targetGaze.x = THREE.MathUtils.clamp(toCursor.x * 2.5, -1, 1)
-    this.targetGaze.y = THREE.MathUtils.clamp(toCursor.y * 2.5, -1, 1)
+    this.targetGaze.x = THREE.MathUtils.clamp(localDir.x * 2.5, -1, 1)
+    this.targetGaze.y = THREE.MathUtils.clamp(localDir.y * 2.5, -1, 1)
 
     // Slight pupil dilation (curiosity/interest)
     this.pupilDilation = Math.min(1, this.pupilDilation + 0.02)

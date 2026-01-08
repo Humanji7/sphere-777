@@ -128,11 +128,13 @@ export class Sphere {
             pauseDuration: 0.4,       // Phase 1: everything freezes
             recognitionDuration: 0.8, // Phase 2: understanding
             holdThreshold: 0.5,       // Min hold time to trigger
-            calmingRate: 0.3          // How fast hold calms trauma (per sec)
+            calmingRate: 0.3,         // How fast hold calms trauma (per sec)
+            faceRotationSpeed: 2.5    // Quaternion slerp speed for face-to-face turn
         }
         this.recognitionTouchPos = new THREE.Vector3()  // Where they touched
         this.recognitionProgress = 0    // 0-1 for animation
         this.wasInRecognition = false   // To detect exit from recognition
+        this.targetFaceRotation = null  // THREE.Quaternion for face-to-face rotation
 
         // Sound Manager (set via setSoundManager after user interaction)
         this.soundManager = null
@@ -438,6 +440,24 @@ export class Sphere {
         if (t < cfg.pauseDuration) {
             const pauseProgress = t / cfg.pauseDuration  // 0 → 1
 
+            // ═══════════════════════════════════════════════════════════
+            // FACE-TO-FACE ROTATION: Sphere turns to face the touch point
+            // ═══════════════════════════════════════════════════════════
+            if (!this.targetFaceRotation) {
+                this.targetFaceRotation = this._computeFaceToFaceRotation(this.recognitionTouchPos)
+            }
+
+            // Smoothly rotate sphere toward touch point
+            const currentQuat = new THREE.Quaternion()
+            currentQuat.setFromEuler(this.particles.mesh.rotation)
+            currentQuat.slerp(this.targetFaceRotation, delta * cfg.faceRotationSpeed)
+            this.particles.mesh.rotation.setFromQuaternion(currentQuat)
+
+            // Sync eye rotation with sphere
+            if (this.eye) {
+                this.eye.setSphereRotation(this.particles.mesh.rotation)
+            }
+
             // Breathing stops
             this.particles.setBreathSpeed(this.baseBreathSpeed * (1 - pauseProgress))
 
@@ -466,6 +486,18 @@ export class Sphere {
         else if (t < cfg.pauseDuration + cfg.recognitionDuration) {
             const recogT = (t - cfg.pauseDuration) / cfg.recognitionDuration  // 0 → 1
             this.recognitionProgress = recogT
+
+            // Continue rotation toward touch point (may not have finished in PAUSE)
+            if (this.targetFaceRotation) {
+                const currentQuat = new THREE.Quaternion()
+                currentQuat.setFromEuler(this.particles.mesh.rotation)
+                currentQuat.slerp(this.targetFaceRotation, delta * cfg.faceRotationSpeed)
+                this.particles.mesh.rotation.setFromQuaternion(currentQuat)
+
+                if (this.eye) {
+                    this.eye.setSphereRotation(this.particles.mesh.rotation)
+                }
+            }
 
             // Pupil dilates (0.3 → 1.0)
             if (this.eye) {
@@ -532,6 +564,9 @@ export class Sphere {
             this.eye.unlockGaze()
         }
 
+        // Clear face rotation target
+        this.targetFaceRotation = null
+
         // Return to appropriate phase
         if (this.traumaLevel > 0.2) {
             this._transitionTo(PHASE.HEALING)
@@ -541,6 +576,27 @@ export class Sphere {
 
         this.recognitionProgress = 0
         this.wasInRecognition = false
+    }
+
+    /**
+     * Compute target rotation to face the touch point
+     * The eye is at local (0, 0, baseRadius) — north pole of sphere
+     * We want to rotate the sphere so the north pole points toward touchPos
+     * @param {THREE.Vector3} touchPos - World position of touch point
+     * @returns {THREE.Quaternion} Target rotation
+     */
+    _computeFaceToFaceRotation(touchPos) {
+        // Direction from center to touch point (normalized)
+        const toTouch = touchPos.clone().normalize()
+
+        // The eye is at the north pole (0, 0, 1) in local space
+        const northPole = new THREE.Vector3(0, 0, 1)
+
+        // Compute quaternion that rotates north pole to point toward touch
+        const targetRotation = new THREE.Quaternion()
+        targetRotation.setFromUnitVectors(northPole, toTouch)
+
+        return targetRotation
     }
 
     _transitionTo(newPhase) {
@@ -735,6 +791,12 @@ export class Sphere {
      * Includes smart magnetism (repel/attract based on approach) and habituation
      */
     _updateCursorProximity(delta, inputState) {
+        // Skip cursor proximity updates during RECOGNITION
+        // This prevents rolling mechanics from interfering with face-to-face rotation
+        if (this.currentPhase === PHASE.RECOGNITION) {
+            return
+        }
+
         const { position, isActive, approachSpeed = 0, hoverDuration = 0 } = inputState
         const config = this.magnetismConfig
 
