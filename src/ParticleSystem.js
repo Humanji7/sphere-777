@@ -734,10 +734,10 @@ export class ParticleSystem {
 
   /**
    * Set cursor attraction strength (pull toward cursor)
-   * @param {number} strength - 0 (off) to 1 (max attraction)
+   * @param {number} strength - -1 (repel) to 1 (max attraction)
    */
   setCursorAttraction(strength) {
-    this.material.uniforms.uCursorAttractionStrength.value = Math.max(0, Math.min(1, strength))
+    this.material.uniforms.uCursorAttractionStrength.value = Math.max(-1, Math.min(1, strength))
   }
 
   /**

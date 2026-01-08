@@ -45,6 +45,15 @@ export class InputManager {
         this.touchIntensity = 0    // Combined intensity modifier (0-1)
 
         // ═══════════════════════════════════════════════════════════
+        // APPROACH SPEED & HOVER DURATION (Deep Interaction)
+        // ═══════════════════════════════════════════════════════════
+        this.approachSpeed = 0           // Rate of approach to center (negative = approaching)
+        this.prevDistFromCenter = 1.0    // Previous distance from screen center
+        this.hoverDuration = 0           // Time cursor has been relatively stationary
+        this.hoverPosition = { x: 0, y: 0 }  // Position when hover started
+        this.HOVER_THRESHOLD = 0.05      // Movement threshold to reset hover
+
+        // ═══════════════════════════════════════════════════════════
         // GESTURE RECOGNITION
         // ═══════════════════════════════════════════════════════════
 
@@ -248,6 +257,36 @@ export class InputManager {
         // 5. Classify gesture
         this.currentGesture = this._classifyGesture()
 
+        // ═══════════════════════════════════════════════════════════
+        // APPROACH SPEED (Deep Interaction)
+        // Negative = approaching center, Positive = retreating
+        // ═══════════════════════════════════════════════════════════
+        const distFromCenter = Math.sqrt(
+            this.position.x * this.position.x +
+            this.position.y * this.position.y
+        )
+        // Smooth the approach speed calculation
+        const instantApproach = (distFromCenter - this.prevDistFromCenter) / delta
+        this.approachSpeed += (instantApproach - this.approachSpeed) * 0.3
+        this.prevDistFromCenter = distFromCenter
+
+        // ═══════════════════════════════════════════════════════════
+        // HOVER DURATION (for habituation)
+        // ═══════════════════════════════════════════════════════════
+        const hoverDist = Math.sqrt(
+            Math.pow(this.position.x - this.hoverPosition.x, 2) +
+            Math.pow(this.position.y - this.hoverPosition.y, 2)
+        )
+        if (hoverDist < this.HOVER_THRESHOLD) {
+            // Still hovering in same spot
+            this.hoverDuration += delta
+        } else {
+            // Moved - reset hover tracking
+            this.hoverDuration = 0
+            this.hoverPosition.x = this.position.x
+            this.hoverPosition.y = this.position.y
+        }
+
         // Store previous position AFTER calculating delta
         this.prevPosition.x = this.position.x
         this.prevPosition.y = this.position.y
@@ -353,7 +392,11 @@ export class InputManager {
             // Touch metrics (mobile emotional intensity)
             touchRadius: this.touchRadius,
             touchPressure: this.touchPressure,
-            touchIntensity: this.touchIntensity
+            touchIntensity: this.touchIntensity,
+
+            // Deep Interaction metrics
+            approachSpeed: this.approachSpeed,
+            hoverDuration: this.hoverDuration
         }
     }
 

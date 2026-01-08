@@ -87,6 +87,19 @@ export class Sphere {
         this.cursorInfluenceSmoothed = 0  // Smoothed influence for gradual fade
 
         // ═══════════════════════════════════════════════════════════
+        // SMART MAGNETISM & HABITUATION (Deep Interaction)
+        // ═══════════════════════════════════════════════════════════
+        this.habituation = 0              // 0-1, how "used to" cursor presence
+        this.attractionModifier = 1.0     // -1 (repel) to 1 (attract)
+        this.magnetismConfig = {
+            fastApproachThreshold: -0.4,  // Approach speed that triggers flinch
+            slowApproachThreshold: -0.1,  // Approach speed for gentle approach
+            repulsionStrength: -0.6,      // How strongly to repel on flinch
+            habituationTime: 2.0,         // Seconds to fully habituate
+            habituationDecay: 0.5         // How fast habituation fades when cursor moves
+        }
+
+        // ═══════════════════════════════════════════════════════════
         // GESTURE REACTIONS (Stage 6)
         // ═══════════════════════════════════════════════════════════
         this.gestureReaction = {
@@ -494,9 +507,11 @@ export class Sphere {
 
     /**
      * Calculate cursor world position and apply proximity effects
+     * Includes smart magnetism (repel/attract based on approach) and habituation
      */
     _updateCursorProximity(delta, inputState) {
-        const { position, isActive } = inputState
+        const { position, isActive, approachSpeed = 0, hoverDuration = 0 } = inputState
+        const config = this.magnetismConfig
 
         // Target influence: 1.0 if active and on sphere, 0.0 otherwise
         let targetInfluence = 0
@@ -526,15 +541,55 @@ export class Sphere {
         this.cursorInfluenceSmoothed += (targetInfluence - this.cursorInfluenceSmoothed) *
             (1 - Math.exp(-smoothSpeed * delta))
 
+        // ═══════════════════════════════════════════════════════════
+        // HABITUATION: Sphere "gets used to" cursor presence
+        // After prolonged hover, reactions diminish
+        // ═══════════════════════════════════════════════════════════
+        if (this.cursorOnSphere && hoverDuration > 0.5) {
+            // Build habituation over time
+            const habituationRate = delta / config.habituationTime
+            this.habituation = Math.min(1, this.habituation + habituationRate)
+        } else {
+            // Decay habituation when cursor moves or leaves
+            this.habituation = Math.max(0, this.habituation - delta * config.habituationDecay)
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // SMART MAGNETISM: Repel on fast approach, attract on slow
+        // "Осторожный ребёнок — боится резких движений"
+        // ═══════════════════════════════════════════════════════════
+        let targetAttractionMod = 1.0
+
+        if (approachSpeed < config.fastApproachThreshold) {
+            // Fast approach → FLINCH (repulsion)
+            targetAttractionMod = config.repulsionStrength
+            // Brief tension spike from startle (reduced by habituation)
+            const startleIntensity = 1 - this.habituation * 0.7
+            this.tensionTime = Math.min(0.3, this.tensionTime + delta * 0.8 * startleIntensity)
+        } else if (approachSpeed > config.slowApproachThreshold && approachSpeed < 0.1) {
+            // Slow approach or stationary → attraction (particles lean in)
+            targetAttractionMod = 1.0
+        } else if (approachSpeed >= 0.1) {
+            // Retreating → neutral/slight following
+            targetAttractionMod = 0.5
+        }
+
+        // Smooth the attraction modifier
+        this.attractionModifier += (targetAttractionMod - this.attractionModifier) * 0.15
+
         // Apply to particle system
         this.particles.setCursorWorldPos(this.cursorWorldPos)
         this.particles.setCursorInfluence(this.cursorInfluenceSmoothed)
 
-        // Attraction: stronger when moving slowly (stroke), weaker when fast
+        // Final attraction: base × velocity damping × magnetism modifier × (1 - habituation)
+        // Habituation reduces reaction strength
         const attractionBase = this.cursorInfluenceSmoothed * 0.7
-        const velocityDamping = Math.max(0, 1 - inputState.velocity * 3)  // Less attraction at high speed
-        this.particles.setCursorAttraction(attractionBase * velocityDamping)
+        const velocityDamping = Math.max(0, 1 - inputState.velocity * 3)
+        const habituationDamping = 1 - this.habituation * 0.6  // Max 60% reduction
+        const finalAttraction = attractionBase * velocityDamping * this.attractionModifier * habituationDamping
+        this.particles.setCursorAttraction(finalAttraction)
     }
+
 
     /**
      * Process gesture-based emotional reactions
