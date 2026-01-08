@@ -1,50 +1,73 @@
 import * as THREE from 'three'
 
 /**
- * Eye - Organic particle-based eye system
+ * Eye - Mystical particle-based eye system
  * 
- * Renders an eye at the sphere's north pole using particles:
- * - Iris: Concentric rings of colored particles
- * - Pupil: Dark central cluster that dilates with tension
- * - Eyelid: Particles that descend to "close" the eye
+ * A spiritual artifact at the sphere's north pole:
+ * - Sacred Geometry Iris: 5-petal hypotrochoid pattern (pentagram)
+ * - Soul Spark: Glowing central point with emotional color transitions
+ * - Ritual Blinking: Light trails and transcendental states
+ * - Aura: Subtle glow that responds to cursor proximity
  * 
- * Integrates with sphere's emotional states and cursor tracking.
+ * "The eye doesn't just look — it transmits the essence of the sphere."
  */
 export class Eye {
     constructor(sphereRadius = 1.5) {
         this.sphereRadius = sphereRadius
 
-        // Eye geometry parameters (scaled up for visibility)
-        this.eyeRadius = 0.45         // Radius of the eye opening on sphere
-        this.irisRadius = 0.35        // Iris outer radius
-        this.pupilRadius = 0.12       // Base pupil radius
-        this.pupilDilateMax = 0.20    // Max dilated pupil radius
+        // Eye geometry parameters
+        this.eyeRadius = 0.45
+        this.irisRadius = 0.35
+        this.pupilRadius = 0.12
+        this.pupilDilateMax = 0.20
 
-        // Particle counts
-        this.irisParticleCount = 120  // Particles in iris rings
-        this.pupilParticleCount = 25  // Particles in pupil
-        this.lidParticleCount = 50    // Particles for eyelid
+        // Particle counts (keeping ~200 total)
+        this.irisParticleCount = 100   // Sacred geometry pattern
+        this.pupilParticleCount = 20   // Dark core
+        this.lidParticleCount = 50     // Eyelid
+        this.soulSparkCount = 1        // The soul spark
 
         // State
-        this.gazeOffset = new THREE.Vector2(0, 0)  // Current gaze direction (-1 to 1)
-        this.targetGaze = new THREE.Vector2(0, 0)  // Target gaze
-        this.pupilDilation = 0        // 0 = normal, 1 = fully dilated
-        this.blinkProgress = 0        // 0 = open, 1 = closed
+        this.gazeOffset = new THREE.Vector2(0, 0)
+        this.targetGaze = new THREE.Vector2(0, 0)
+        this.pupilDilation = 0
+        this.blinkProgress = 0
         this.isBlinking = false
         this.blinkTimer = 0
-        this.nextBlinkTime = 3 + Math.random() * 4  // 3-7 seconds between blinks
+        this.nextBlinkTime = 3 + Math.random() * 4
+        this.prevBlinkProgress = 0  // For velocity calculation
 
         // Emotional states
-        this.tension = 0              // 0-1, affects pupil size and movement speed
+        this.tension = 0
         this.isSleeping = false
-        this.tearAmount = 0           // 0-1, for bleeding phase
+        this.tearAmount = 0
+
+        // Mystical states
+        this.irisRotation = 0           // Current rotation angle
+        this.irisRotationSpeed = 0      // Current speed
+        this.targetRotationSpeed = 0.1  // Base rotation speed
+        this.listeningTime = 0          // Time in listening state
+        this.emotionalState = 0         // 0=Peace, 1=Tension, 2=Trauma, 3=Healing
+        this.auraIntensity = 0.2        // Base aura glow
+        this.targetAuraIntensity = 0.2
+        this.cursorProximity = 0        // 0-1, distance to cursor
+
+        // Soul Spark colors
+        this.soulSparkColors = {
+            peace: new THREE.Color(0xE0E8FF),      // Cold white
+            listening: new THREE.Color(0xA0C4FF),  // Soft blue
+            tension: new THREE.Color(0xFFD700),    // Warm gold
+            trauma: new THREE.Color(0x3D1A4F)      // Muted purple
+        }
+        this.currentSoulColor = this.soulSparkColors.peace.clone()
+        this.targetSoulColor = this.soulSparkColors.peace.clone()
 
         // Colors
         this.irisColor = new THREE.Color().setHSL(0.12, 0.7, 0.45)   // Amber/gold
-        this.pupilColor = new THREE.Color(0x050505)                   // Near black
-        this.lidColor = new THREE.Color().setHSL(0.66, 0.4, 0.25)    // Dark blue (skin)
+        this.pupilColor = new THREE.Color(0x050505)
+        this.lidColor = new THREE.Color().setHSL(0.66, 0.4, 0.25)
 
-        // Sphere rotation reference (will be set by parent)
+        // Sphere rotation reference
         this.sphereRotation = new THREE.Euler(0, 0, 0)
 
         this._createGeometry()
@@ -53,43 +76,72 @@ export class Eye {
     }
 
     _createGeometry() {
-        const totalCount = this.irisParticleCount + this.pupilParticleCount + this.lidParticleCount
+        const totalCount = this.irisParticleCount + this.pupilParticleCount +
+            this.lidParticleCount + this.soulSparkCount
         this.totalCount = totalCount
 
         this.geometry = new THREE.BufferGeometry()
 
         // Positions
         this.positions = new Float32Array(totalCount * 3)
-        // Base positions (for animations)
         this.basePositions = new Float32Array(totalCount * 3)
-        // Particle type: 0 = iris, 1 = pupil, 2 = lid
+        // Particle type: 0 = iris, 1 = pupil, 2 = lid, 3 = soul spark
         this.types = new Float32Array(totalCount)
         // Ring index for iris (0-1, distance from center)
         this.ringIndex = new Float32Array(totalCount)
         // Random seed per particle
         this.seeds = new Float32Array(totalCount)
+        // Angle in sacred pattern (for rotation)
+        this.angles = new Float32Array(totalCount)
+        // Petal index (0-4 for 5-petal pattern)
+        this.petals = new Float32Array(totalCount)
 
         let idx = 0
 
         // ═══════════════════════════════════════════════════════════
-        // IRIS PARTICLES - Concentric rings
+        // IRIS PARTICLES - Sacred Geometry (5-petal Rose + Spiral Layers)
         // ═══════════════════════════════════════════════════════════
-        const irisRings = 4
-        const particlesPerRing = Math.floor(this.irisParticleCount / irisRings)
+        // Rose curve: r = cos(k*θ) where k=5 gives 5 petals
+        // We layer multiple rings to fill the iris area
+        const k = 5  // 5-petal rose
+        const layers = 4  // Concentric layers
+        const particlesPerLayer = Math.floor(this.irisParticleCount / layers)
 
-        for (let ring = 0; ring < irisRings; ring++) {
-            const ringRadius = this.pupilRadius + (this.irisRadius - this.pupilRadius) * ((ring + 1) / irisRings)
-            const ringNormalized = (ring + 1) / irisRings
+        for (let layer = 0; layer < layers; layer++) {
+            // Each layer is slightly smaller radius
+            const layerRadius = this.irisRadius * (0.4 + 0.6 * (layer + 1) / layers)
 
-            for (let p = 0; p < particlesPerRing; p++) {
-                const angle = (p / particlesPerRing) * Math.PI * 2 + ring * 0.3  // Offset each ring
+            for (let p = 0; p < particlesPerLayer; p++) {
+                // Angle wraps multiple times through the rose
+                const t = (p / particlesPerLayer) * Math.PI * 2
 
-                // Position in eye-local 2D space
-                const localX = Math.cos(angle) * ringRadius
-                const localY = Math.sin(angle) * ringRadius
+                // Rose curve r = cos(k * t), scaled by layer
+                // Add small offset per layer for visual richness
+                const roseR = Math.abs(Math.cos(k * t + layer * 0.2))
+                const finalRadius = layerRadius * (0.3 + roseR * 0.7)
 
-                // Project onto sphere surface (north pole)
-                const pos = this._projectToSpherePole(localX, localY)
+                // Golden angle spiral for layer distribution
+                const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+                const spiralOffset = layer * goldenAngle * 0.5
+
+                let hx = Math.cos(t + spiralOffset) * finalRadius
+                let hy = Math.sin(t + spiralOffset) * finalRadius
+
+                // Organic jitter
+                const seed = Math.random()
+                const jitter = 0.012
+                hx += (seed - 0.5) * jitter * 2
+                hy += (Math.random() - 0.5) * jitter * 2
+
+                // Calculate normalized distance from center
+                const distFromCenter = Math.sqrt(hx * hx + hy * hy)
+                const ringNormalized = distFromCenter / this.irisRadius
+
+                // Determine which petal (0-4)
+                const angle = Math.atan2(hy, hx)
+                const petalIndex = Math.floor(((angle + Math.PI) / (Math.PI * 2)) * k) % k
+
+                const pos = this._projectToSpherePole(hx, hy)
 
                 const i3 = idx * 3
                 this.positions[i3] = pos.x
@@ -102,14 +154,16 @@ export class Eye {
 
                 this.types[idx] = 0  // iris
                 this.ringIndex[idx] = ringNormalized
-                this.seeds[idx] = Math.random()
+                this.seeds[idx] = seed
+                this.angles[idx] = t
+                this.petals[idx] = petalIndex
 
                 idx++
             }
         }
 
         // ═══════════════════════════════════════════════════════════
-        // PUPIL PARTICLES - Central cluster
+        // PUPIL PARTICLES - Dark central cluster
         // ═══════════════════════════════════════════════════════════
         for (let p = 0; p < this.pupilParticleCount; p++) {
             // Fibonacci spiral for even distribution
@@ -134,6 +188,8 @@ export class Eye {
             this.types[idx] = 1  // pupil
             this.ringIndex[idx] = 0
             this.seeds[idx] = Math.random()
+            this.angles[idx] = theta
+            this.petals[idx] = 0
 
             idx++
         }
@@ -143,11 +199,11 @@ export class Eye {
         // ═══════════════════════════════════════════════════════════
         for (let p = 0; p < this.lidParticleCount; p++) {
             const t = p / (this.lidParticleCount - 1)
-            const angle = Math.PI * 0.3 + t * Math.PI * 0.4  // Arc from 54° to 126°
+            const angle = Math.PI * 0.3 + t * Math.PI * 0.4
 
             const lidRadius = this.eyeRadius + 0.03
             const localX = Math.cos(angle) * lidRadius
-            const localY = this.eyeRadius + 0.08  // Above the eye (will slide down)
+            const localY = this.eyeRadius + 0.08
 
             const pos = this._projectToSpherePole(localX, localY)
 
@@ -163,6 +219,34 @@ export class Eye {
             this.types[idx] = 2  // lid
             this.ringIndex[idx] = t
             this.seeds[idx] = Math.random()
+            this.angles[idx] = angle
+            this.petals[idx] = 0
+
+            idx++
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // SOUL SPARK - The spiritual center
+        // ═══════════════════════════════════════════════════════════
+        {
+            const pos = this._projectToSpherePole(0, 0)
+            // Slightly more forward than pupil
+            const forwardOffset = 0.02
+
+            const i3 = idx * 3
+            this.positions[i3] = pos.x
+            this.positions[i3 + 1] = pos.y
+            this.positions[i3 + 2] = pos.z + forwardOffset
+
+            this.basePositions[i3] = pos.x
+            this.basePositions[i3 + 1] = pos.y
+            this.basePositions[i3 + 2] = pos.z + forwardOffset
+
+            this.types[idx] = 3  // soul spark
+            this.ringIndex[idx] = 0
+            this.seeds[idx] = 0.5  // Consistent seed
+            this.angles[idx] = 0
+            this.petals[idx] = 0
 
             idx++
         }
@@ -172,33 +256,19 @@ export class Eye {
         this.geometry.setAttribute('aType', new THREE.BufferAttribute(this.types, 1))
         this.geometry.setAttribute('aRingIndex', new THREE.BufferAttribute(this.ringIndex, 1))
         this.geometry.setAttribute('aSeed', new THREE.BufferAttribute(this.seeds, 1))
+        this.geometry.setAttribute('aAngle', new THREE.BufferAttribute(this.angles, 1))
+        this.geometry.setAttribute('aPetal', new THREE.BufferAttribute(this.petals, 1))
     }
 
     /**
      * Project 2D eye-local coordinates onto sphere surface at north pole
-     * The eye is positioned at the "front" of the sphere (facing camera at z=5)
-     * @param {number} x - local X (-0.3 to 0.3)
-     * @param {number} y - local Y (-0.3 to 0.3)
-     * @returns {THREE.Vector3} position on sphere
      */
     _projectToSpherePole(x, y) {
         const r = this.sphereRadius
-
-        // Eye is at the front of sphere (facing camera)
-        // Camera is at z=5, so "front" of sphere is at z=+radius
-        // We place the eye in the XY plane at z=radius, with slight forward offset
-
-        // Create a point on the sphere surface
-        // Start from (x, y, 0) on a local plane, then project onto sphere at front
         const point = new THREE.Vector3(x, y, r)
-
-        // Normalize to place on sphere surface (at radius distance from center)
         point.normalize().multiplyScalar(r)
-
-        // Add tiny offset outward to prevent z-fighting with main particles
         const outwardOffset = 0.02
         point.multiplyScalar(1 + outwardOffset / r)
-
         return point
     }
 
@@ -211,15 +281,24 @@ export class Eye {
                 uIrisColor: { value: this.irisColor },
                 uPupilColor: { value: this.pupilColor },
                 uLidColor: { value: this.lidColor },
+                uSoulSparkColor: { value: this.currentSoulColor },
                 uGazeOffset: { value: new THREE.Vector2(0, 0) },
                 uPupilDilation: { value: 0 },
                 uBlinkProgress: { value: 0 },
-                uTension: { value: 0 }
+                uBlinkVelocity: { value: 0 },
+                uTension: { value: 0 },
+                uIrisRotation: { value: 0 },
+                uAuraIntensity: { value: 0.2 },
+                uListeningTime: { value: 0 },
+                uEmotionalState: { value: 0 },
+                uSoulSparkPhase: { value: 0 }
             },
             vertexShader: `
         attribute float aType;
         attribute float aRingIndex;
         attribute float aSeed;
+        attribute float aAngle;
+        attribute float aPetal;
         attribute vec3 aBasePos;
         
         uniform float uTime;
@@ -228,30 +307,60 @@ export class Eye {
         uniform vec2 uGazeOffset;
         uniform float uPupilDilation;
         uniform float uBlinkProgress;
+        uniform float uBlinkVelocity;
         uniform float uTension;
+        uniform float uIrisRotation;
+        uniform float uListeningTime;
+        uniform float uEmotionalState;
+        uniform float uSoulSparkPhase;
         
         varying float vType;
         varying float vRingIndex;
         varying float vSeed;
         varying float vBlinkCover;
+        varying float vPetal;
+        varying float vAuraFactor;
         
         void main() {
           vType = aType;
           vRingIndex = aRingIndex;
           vSeed = aSeed;
           vBlinkCover = 0.0;
+          vPetal = aPetal;
+          vAuraFactor = 0.0;
           
           vec3 pos = position;
           vec3 basePos = aBasePos;
+          vec3 eyeCenter = vec3(0.0, 0.0, 1.5);
           
-          // Get eye center (approximation: average of base positions)
-          vec3 eyeCenter = vec3(0.0, 0.0, 1.5);  // North pole
+          // ═══════════════════════════════════════════════════════════
+          // IRIS ROTATION - Sacred geometry spinning
+          // ═══════════════════════════════════════════════════════════
+          if (aType < 0.5) {
+            vec3 fromCenter = pos - eyeCenter;
+            float angle = uIrisRotation;
+            float cosA = cos(angle);
+            float sinA = sin(angle);
+            vec3 rotated = vec3(
+              fromCenter.x * cosA - fromCenter.y * sinA,
+              fromCenter.x * sinA + fromCenter.y * cosA,
+              fromCenter.z
+            );
+            pos = eyeCenter + rotated;
+            
+            // Pulsation - breathe from center outward
+            float pulse = sin(uTime * 1.5 + aRingIndex * 3.14159) * 0.02;
+            vec3 outDir = normalize(fromCenter);
+            pos += outDir * pulse * (1.0 + uTension * 0.5);
+            
+            // Aura factor for outer particles
+            vAuraFactor = smoothstep(0.6, 1.0, aRingIndex);
+          }
           
           // ═══════════════════════════════════════════════════════════
           // GAZE: Shift iris and pupil based on cursor direction
           // ═══════════════════════════════════════════════════════════
-          if (aType < 1.5) {  // Iris or pupil
-            // Convert gaze offset to 3D displacement on sphere surface
+          if (aType < 1.5) {
             float maxGazeShift = 0.08;
             vec3 gazeShift = vec3(
               uGazeOffset.x * maxGazeShift,
@@ -259,35 +368,54 @@ export class Eye {
               0.0
             );
             
-            // Pupil moves more than iris (parallax effect)
+            // Eye roll during long listening
+            float rollAmount = smoothstep(3.0, 6.0, uListeningTime) * 0.06;
+            gazeShift.y += rollAmount;
+            
             float gazeMultiplier = aType < 0.5 ? 1.0 : 1.5;
             pos += gazeShift * gazeMultiplier;
           }
           
           // ═══════════════════════════════════════════════════════════
-          // PUPIL DILATION: Scale pupil particles outward
+          // PUPIL DILATION
           // ═══════════════════════════════════════════════════════════
-          if (aType > 0.5 && aType < 1.5) {  // Pupil
+          if (aType > 0.5 && aType < 1.5) {
             vec3 fromCenter = pos - eyeCenter;
-            float dilationScale = 1.0 + uPupilDilation * 0.8;  // Up to 1.8x size
+            float dilationScale = 1.0 + uPupilDilation * 0.8;
             pos = eyeCenter + fromCenter * dilationScale;
           }
           
           // ═══════════════════════════════════════════════════════════
-          // BLINK: Move lid particles down to cover eye
+          // SOUL SPARK - Breathing with phase shift
           // ═══════════════════════════════════════════════════════════
-          if (aType > 1.5) {  // Lid
-            // Lid slides down from above eye to cover it
-            float lidTravel = 0.35;  // How far lid moves
-            vec3 downDir = normalize(vec3(0.0, -1.0, 0.0));
+          if (aType > 2.5) {
+            // Breathe with slight phase offset from main sphere
+            float breathe = sin(uSoulSparkPhase) * 0.015;
+            pos.z += breathe;
             
-            // Smooth easing for natural blink
-            float blinkEased = uBlinkProgress * uBlinkProgress * (3.0 - 2.0 * uBlinkProgress);
-            pos += downDir * blinkEased * lidTravel;
+            // Subtle orbital motion
+            float orbit = uTime * 0.3;
+            pos.x += sin(orbit) * 0.005;
+            pos.y += cos(orbit) * 0.005;
           }
           
-          // Check if this particle is covered by blink
-          // Iris/pupil particles fade when lid passes over them
+          // ═══════════════════════════════════════════════════════════
+          // BLINK with trails
+          // ═══════════════════════════════════════════════════════════
+          if (aType > 1.5 && aType < 2.5) {
+            float lidTravel = 0.35;
+            vec3 downDir = normalize(vec3(0.0, -1.0, 0.0));
+            
+            // Smooth easing
+            float blinkEased = uBlinkProgress * uBlinkProgress * (3.0 - 2.0 * uBlinkProgress);
+            pos += downDir * blinkEased * lidTravel;
+            
+            // Trail effect - stretch particles based on velocity
+            float trailStretch = abs(uBlinkVelocity) * 0.1;
+            pos.y += trailStretch * sign(-uBlinkVelocity) * aSeed;
+          }
+          
+          // Check blink coverage for iris/pupil
           if (aType < 1.5) {
             float particleY = pos.y - eyeCenter.y;
             float lidY = 0.0 - uBlinkProgress * 0.35;
@@ -295,7 +423,7 @@ export class Eye {
           }
           
           // ═══════════════════════════════════════════════════════════
-          // MICRO-TREMOR: Subtle random movement (more when tense)
+          // MICRO-TREMOR
           // ═══════════════════════════════════════════════════════════
           float tremorAmount = 0.003 + uTension * 0.008;
           pos += vec3(
@@ -310,14 +438,22 @@ export class Eye {
           // Size attenuation
           float baseSize = uSize * uPixelRatio * (1.0 / -mvPosition.z);
           
-          // Pupil particles slightly larger
-          if (aType > 0.5 && aType < 1.5) {
+          // Soul spark is larger and pulses
+          if (aType > 2.5) {
+            float sparkPulse = 0.8 + sin(uSoulSparkPhase * 1.5) * 0.4;
+            baseSize *= 2.5 * sparkPulse;
+          }
+          // Pupil slightly larger
+          else if (aType > 0.5 && aType < 1.5) {
             baseSize *= 1.3;
           }
-          
-          // Lid particles
-          if (aType > 1.5) {
+          // Lid
+          else if (aType > 1.5 && aType < 2.5) {
             baseSize *= 1.1;
+          }
+          // Outer iris particles (aura carriers) slightly larger
+          else if (vAuraFactor > 0.5) {
+            baseSize *= 1.2;
           }
           
           gl_PointSize = baseSize;
@@ -327,16 +463,21 @@ export class Eye {
         uniform vec3 uIrisColor;
         uniform vec3 uPupilColor;
         uniform vec3 uLidColor;
+        uniform vec3 uSoulSparkColor;
         uniform float uTime;
         uniform float uTension;
+        uniform float uAuraIntensity;
+        uniform float uEmotionalState;
+        uniform float uBlinkVelocity;
         
         varying float vType;
         varying float vRingIndex;
         varying float vSeed;
         varying float vBlinkCover;
+        varying float vPetal;
+        varying float vAuraFactor;
         
         void main() {
-          // Circular particle
           vec2 center = gl_PointCoord - 0.5;
           float dist = length(center);
           if (dist > 0.5) discard;
@@ -347,41 +488,108 @@ export class Eye {
           vec3 color;
           
           // ═══════════════════════════════════════════════════════════
-          // IRIS: Gradient from pupil edge to outer ring
+          // SOUL SPARK - Glowing spiritual center
           // ═══════════════════════════════════════════════════════════
-          if (vType < 0.5) {
-            // Inner rings darker, outer rings lighter
-            float brightness = 0.7 + vRingIndex * 0.4;
-            color = uIrisColor * brightness;
+          if (vType > 2.5) {
+            color = uSoulSparkColor;
             
-            // Subtle shimmer
-            float shimmer = sin(uTime * 2.0 + vSeed * 20.0) * 0.1 + 0.9;
-            color *= shimmer;
+            // Radial glow effect
+            float glow = 1.0 - dist * 1.5;
+            glow = max(0.0, glow);
+            color *= 1.0 + glow * 2.0;
             
-            // Tension: iris gets warmer/more intense
-            color = mix(color, color * vec3(1.2, 0.9, 0.8), uTension * 0.3);
+            // Bright center
+            alpha = smoothstep(0.5, 0.0, dist);
+            alpha = max(alpha, 0.3);  // Minimum visibility
+            
+            // Add sparkle
+            float sparkle = sin(uTime * 8.0 + vSeed * 50.0) * 0.3 + 0.7;
+            color *= sparkle;
           }
           
           // ═══════════════════════════════════════════════════════════
-          // PUPIL: Deep black core
+          // IRIS - Sacred geometry with gradient per petal
+          // ═══════════════════════════════════════════════════════════
+          else if (vType < 0.5) {
+            // Base color with petal variation
+            float petalHue = vPetal / 5.0 * 0.1;  // Slight hue shift per petal
+            vec3 baseColor = uIrisColor;
+            
+            // Petal-based color variation (subtle rainbow)
+            baseColor.r += sin(vPetal * 1.2) * 0.08;
+            baseColor.g += cos(vPetal * 0.8) * 0.05;
+            baseColor.b += sin(vPetal * 1.5 + 1.0) * 0.06;
+            
+            // Inner to outer gradient
+            float brightness = 0.6 + vRingIndex * 0.5;
+            color = baseColor * brightness;
+            
+            // Shimmer wave across petals
+            float wave = sin(uTime * 2.0 + vPetal * 1.2 + vRingIndex * 3.0) * 0.15 + 0.85;
+            color *= wave;
+            
+            // Tension: warmer, more intense
+            color = mix(color, color * vec3(1.3, 0.95, 0.85), uTension * 0.4);
+            
+            // TRAUMA state: dim and desaturate
+            if (uEmotionalState > 1.5 && uEmotionalState < 2.5) {
+              float traumaDim = 0.4;
+              color *= traumaDim;
+              // Desaturate
+              float gray = dot(color, vec3(0.299, 0.587, 0.114));
+              color = mix(color, vec3(gray), 0.5);
+            }
+            
+            // HEALING state: soft light waves
+            if (uEmotionalState > 2.5) {
+              float healWave = sin(uTime * 0.8 + vRingIndex * 2.0) * 0.2 + 1.0;
+              color *= healWave;
+              // Slight blue-white tint
+              color = mix(color, vec3(0.9, 0.95, 1.0), 0.15);
+            }
+            
+            // Aura glow for outer particles
+            if (vAuraFactor > 0.0) {
+              float auraGlow = vAuraFactor * uAuraIntensity * (1.0 + sin(uTime * 3.0) * 0.3);
+              color += uIrisColor * auraGlow * 0.5;
+              alpha = mix(alpha, alpha * 0.7, vAuraFactor * 0.3);  // Slightly transparent aura
+            }
+          }
+          
+          // ═══════════════════════════════════════════════════════════
+          // PUPIL - Deep black with purple edge
           // ═══════════════════════════════════════════════════════════
           else if (vType < 1.5) {
             color = uPupilColor;
-            // Slight purple tint at edges
-            color = mix(color, vec3(0.1, 0.05, 0.15), dist * 0.5);
+            // Purple tint at edges
+            color = mix(color, vec3(0.12, 0.05, 0.18), dist * 0.6);
+            
+            // TRAUMA: slightly lighter (soul retreating)
+            if (uEmotionalState > 1.5 && uEmotionalState < 2.5) {
+              color = mix(color, vec3(0.15, 0.1, 0.2), 0.3);
+            }
           }
           
           // ═══════════════════════════════════════════════════════════
-          // LID: Skin-colored particles
+          // LID - Skin with light trails
           // ═══════════════════════════════════════════════════════════
-          else {
+          else if (vType < 2.5) {
             color = uLidColor;
-            // Subtle variation
             color *= 0.9 + vSeed * 0.2;
+            
+            // Light trail during blink
+            float trailGlow = abs(uBlinkVelocity) * 0.8;
+            vec3 trailColor = vec3(0.6, 0.7, 1.0);  // Cool blue-white
+            color = mix(color, trailColor, trailGlow * vSeed);
+            
+            // Slight glow at edges during movement
+            if (trailGlow > 0.1) {
+              alpha *= 1.0 + trailGlow * 0.5;
+            }
           }
           
-          // Blink coverage: fade out particles as lid passes
-          if (vType < 1.5) {
+          // Blink coverage fade for iris/pupil/spark
+          if (vType < 2.5) {
             alpha *= 1.0 - vBlinkCover;
           }
           
@@ -399,19 +607,14 @@ export class Eye {
     }
 
     /**
-     * Set target gaze direction (will smooth to this)
-     * @param {THREE.Vector3} cursorWorldPos - cursor position in world space
+     * Set target gaze direction
      */
     lookAt(cursorWorldPos) {
-        // Get eye center in world space
         const eyeCenter = new THREE.Vector3(0, 0, this.sphereRadius)
         eyeCenter.applyEuler(this.sphereRotation)
 
-        // Direction from eye to cursor
         const toCursor = cursorWorldPos.clone().sub(eyeCenter).normalize()
 
-        // Project to 2D gaze (eye-local space)
-        // We want x = left/right, y = up/down relative to eye facing direction
         this.targetGaze.x = THREE.MathUtils.clamp(toCursor.x * 2, -1, 1)
         this.targetGaze.y = THREE.MathUtils.clamp(toCursor.y * 2, -1, 1)
     }
@@ -427,33 +630,83 @@ export class Eye {
     }
 
     /**
-     * Set pupil dilation (tension response)
-     * @param {number} amount - 0 (normal) to 1 (fully dilated)
+     * Set pupil dilation
      */
     setDilation(amount) {
         this.pupilDilation = THREE.MathUtils.clamp(amount, 0, 1)
     }
 
     /**
-     * Set tension level (affects micro-tremor and colors)
-     * @param {number} tension - 0-1
+     * Set tension level
      */
     setTension(tension) {
         this.tension = THREE.MathUtils.clamp(tension, 0, 1)
         this.material.uniforms.uTension.value = this.tension
+
+        // Tension affects rotation speed
+        this.targetRotationSpeed = 0.1 + tension * 1.5  // Up to 1.6 rad/sec at max tension
     }
 
     /**
-     * Set sleeping state (eyes close slowly)
-     * @param {boolean} sleeping
+     * Set sleeping state
      */
     setSleeping(sleeping) {
         this.isSleeping = sleeping
     }
 
     /**
+     * Set emotional state for visual effects
+     * @param {string} phase - 'peace', 'listening', 'tension', 'bleeding', 'trauma', 'healing'
+     */
+    setEmotionalPhase(phase) {
+        switch (phase) {
+            case 'peace':
+                this.emotionalState = 0
+                this.targetSoulColor.copy(this.soulSparkColors.peace)
+                this.targetAuraIntensity = 0.2
+                this.listeningTime = 0
+                break
+            case 'listening':
+                this.emotionalState = 0
+                this.targetSoulColor.copy(this.soulSparkColors.listening)
+                this.targetAuraIntensity = 0.35
+                break
+            case 'tension':
+            case 'bleeding':
+                this.emotionalState = 1
+                this.targetSoulColor.copy(this.soulSparkColors.tension)
+                this.targetAuraIntensity = 0.5
+                this.listeningTime = 0
+                break
+            case 'trauma':
+                this.emotionalState = 2
+                this.targetSoulColor.copy(this.soulSparkColors.trauma)
+                this.targetAuraIntensity = 0.05
+                this.listeningTime = 0
+                break
+            case 'healing':
+                this.emotionalState = 3
+                this.targetSoulColor.copy(this.soulSparkColors.peace)
+                this.targetAuraIntensity = 0.4
+                this.listeningTime = 0
+                break
+        }
+        this.material.uniforms.uEmotionalState.value = this.emotionalState
+    }
+
+    /**
+     * Set cursor proximity for aura effect
+     * @param {number} proximity - 0-1
+     */
+    setCursorProximity(proximity) {
+        this.cursorProximity = THREE.MathUtils.clamp(proximity, 0, 1)
+        // Boost aura when cursor is near
+        const proximityBoost = proximity * 0.4
+        this.targetAuraIntensity = Math.max(this.targetAuraIntensity, 0.2 + proximityBoost)
+    }
+
+    /**
      * Sync with sphere's rotation
-     * @param {THREE.Euler} rotation
      */
     setSphereRotation(rotation) {
         this.sphereRotation.copy(rotation)
@@ -462,19 +715,36 @@ export class Eye {
 
     /**
      * Update eye animation
-     * @param {number} delta - time delta
-     * @param {number} elapsed - total elapsed time
      */
     update(delta, elapsed) {
         this.material.uniforms.uTime.value = elapsed
 
         // ═══════════════════════════════════════════════════════════
+        // IRIS ROTATION
+        // ═══════════════════════════════════════════════════════════
+        this.irisRotationSpeed = THREE.MathUtils.lerp(
+            this.irisRotationSpeed,
+            this.targetRotationSpeed,
+            delta * 2.0
+        )
+        this.irisRotation += this.irisRotationSpeed * delta
+        this.material.uniforms.uIrisRotation.value = this.irisRotation
+
+        // ═══════════════════════════════════════════════════════════
         // GAZE SMOOTHING
         // ═══════════════════════════════════════════════════════════
-        const gazeSpeed = 5.0 - this.tension * 2.0  // Slower when tense
+        const gazeSpeed = 5.0 - this.tension * 2.0
         this.gazeOffset.x = THREE.MathUtils.lerp(this.gazeOffset.x, this.targetGaze.x, delta * gazeSpeed)
         this.gazeOffset.y = THREE.MathUtils.lerp(this.gazeOffset.y, this.targetGaze.y, delta * gazeSpeed)
         this.material.uniforms.uGazeOffset.value.copy(this.gazeOffset)
+
+        // ═══════════════════════════════════════════════════════════
+        // LISTENING TIME (for eye roll effect)
+        // ═══════════════════════════════════════════════════════════
+        if (this.emotionalState === 0 && !this.isSleeping) {
+            this.listeningTime += delta
+        }
+        this.material.uniforms.uListeningTime.value = this.listeningTime
 
         // ═══════════════════════════════════════════════════════════
         // PUPIL DILATION SMOOTHING
@@ -487,26 +757,44 @@ export class Eye {
         )
 
         // ═══════════════════════════════════════════════════════════
+        // SOUL SPARK PHASE (slightly faster than sphere breathing)
+        // ═══════════════════════════════════════════════════════════
+        const soulSparkPhase = elapsed * 0.9 + Math.PI / 4  // Phase offset
+        this.material.uniforms.uSoulSparkPhase.value = soulSparkPhase
+
+        // ═══════════════════════════════════════════════════════════
+        // SOUL SPARK COLOR INTERPOLATION
+        // ═══════════════════════════════════════════════════════════
+        this.currentSoulColor.lerp(this.targetSoulColor, delta * 2.0)
+        this.material.uniforms.uSoulSparkColor.value.copy(this.currentSoulColor)
+
+        // ═══════════════════════════════════════════════════════════
+        // AURA INTENSITY SMOOTHING
+        // ═══════════════════════════════════════════════════════════
+        this.auraIntensity = THREE.MathUtils.lerp(
+            this.auraIntensity,
+            this.targetAuraIntensity,
+            delta * 3.0
+        )
+        this.material.uniforms.uAuraIntensity.value = this.auraIntensity
+
+        // ═══════════════════════════════════════════════════════════
         // BLINKING
         // ═══════════════════════════════════════════════════════════
         if (this.isBlinking) {
             this.blinkTimer += delta
-            const blinkDuration = 0.15  // 150ms for full close/open cycle
+            const blinkDuration = 0.15
 
             if (this.blinkTimer < blinkDuration) {
-                // Closing
                 this.blinkProgress = this.blinkTimer / blinkDuration
             } else if (this.blinkTimer < blinkDuration * 2) {
-                // Opening
                 this.blinkProgress = 1 - (this.blinkTimer - blinkDuration) / blinkDuration
             } else {
-                // Done
                 this.isBlinking = false
                 this.blinkProgress = 0
                 this.nextBlinkTime = 3 + Math.random() * 4
             }
         } else if (!this.isSleeping) {
-            // Random blink timer
             this.nextBlinkTime -= delta
             if (this.nextBlinkTime <= 0) {
                 this.blink()
@@ -518,11 +806,15 @@ export class Eye {
             this.blinkProgress = THREE.MathUtils.lerp(this.blinkProgress, 1, delta * 2)
         }
 
+        // Blink velocity for trail effect
+        const blinkVelocity = (this.blinkProgress - this.prevBlinkProgress) / Math.max(delta, 0.001)
+        this.prevBlinkProgress = this.blinkProgress
+        this.material.uniforms.uBlinkVelocity.value = blinkVelocity
         this.material.uniforms.uBlinkProgress.value = this.blinkProgress
     }
 
     /**
-     * Get the mesh to add to scene
+     * Get the mesh
      */
     getMesh() {
         return this.mesh

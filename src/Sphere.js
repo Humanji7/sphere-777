@@ -462,6 +462,12 @@ export class Sphere {
             // Pass tension to eye for micro-tremors
             this.eye.setTension(this.currentColorProgress)
 
+            // Pass cursor proximity for aura glow
+            this.eye.setCursorProximity(this.cursorInfluenceSmoothed)
+
+            // Set emotional phase for mystical visual effects
+            this.eye.setEmotionalPhase(this.currentPhase)
+
             // Phase-specific eye reactions
             switch (this.currentPhase) {
                 case PHASE.LISTENING:
