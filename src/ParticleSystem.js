@@ -110,60 +110,8 @@ export class ParticleSystem {
     this.geometry.setAttribute('aBleedPhase', new THREE.BufferAttribute(this.bleedingPhases, 1))
   }
 
-  _createMaterial() {
-    this.material = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uBreathPhase: { value: 0 },
-        uBreathAmount: { value: this.breathAmount },
-        uColorNormal: { value: this.colorNormal },
-        uColorGhost: { value: this.colorGhost },
-        uColorFalling: { value: this.colorFalling },
-        uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
-        uSize: { value: 6.0 * this.sizeMultiplier },
-        uPauseFactor: { value: 0 },
-        uColorTint: { value: 1.0 },
-        uEvapFadeOutEnd: { value: 0.45 },  // phase 0-0.45 = fade out
-        uEvapFadeInStart: { value: 0.55 }, // phase 0.55-1.0 = fade in
-        // Perlin noise dynamics
-        uNoiseAmount: { value: 0.08 },     // base displacement amplitude
-        uNoiseSpeed: { value: 0.3 },       // base animation speed (kept constant)
-        uGoosebumpsIntensity: { value: 0.0 }, // high-freq layer intensity (0→0.05)
-        // Effect Conductor uniforms
-        uDynamicSizeAmount: { value: 0.0 },   // pulsation intensity (0-1)
-        uSparkleIntensity: { value: 0.0 },     // sparkle brightness (0-1)
-        // Cursor proximity (Deep Interaction)
-        uCursorWorldPos: { value: new THREE.Vector3(0, 0, 10) },  // far away by default
-        uCursorInfluenceRadius: { value: 0.8 },   // ~50% of sphere radius
-        uCursorInfluenceStrength: { value: 0.0 }, // 0-1, glow intensity
-        uCursorAttractionStrength: { value: 0.0 }, // 0-1, pull toward cursor
-        // Ripple effect (poke reaction)
-        uRippleOrigin: { value: new THREE.Vector3(0, 0, 0) },
-        uRippleTime: { value: -1.0 },  // Negative = inactive
-        uRippleSpeed: { value: 3.0 },  // How fast ripple expands
-        uRippleDecay: { value: 2.0 },   // How fast ripple fades
-        // Ghost Traces (emotional memory - scares leave visual marks)
-        uGhostTrace0Pos: { value: new THREE.Vector3(0, 0, 0) },
-        uGhostTrace1Pos: { value: new THREE.Vector3(0, 0, 0) },
-        uGhostTrace2Pos: { value: new THREE.Vector3(0, 0, 0) },
-        uGhostTrace0Alpha: { value: 0.0 },
-        uGhostTrace1Alpha: { value: 0.0 },
-        uGhostTrace2Alpha: { value: 0.0 },
-        // Warm Traces (emotional memory - gentle contact leaves visual marks)
-        uWarmTrace0Pos: { value: new THREE.Vector3(0, 0, 0) },
-        uWarmTrace1Pos: { value: new THREE.Vector3(0, 0, 0) },
-        uWarmTrace2Pos: { value: new THREE.Vector3(0, 0, 0) },
-        uWarmTrace0Alpha: { value: 0.0 },
-        uWarmTrace1Alpha: { value: 0.0 },
-        uWarmTrace2Alpha: { value: 0.0 },
-        // Touch Glow (RECOGNITION phase - hold gesture)
-        uTouchGlowPos: { value: new THREE.Vector3(0, 0, 10) },  // Far away by default
-        uTouchGlowIntensity: { value: 0.0 },
-        uPulse: { value: 0.0 },  // Heartbeat pulsation (0-1)
-        // Osmosis (Hold gesture — bidirectional exchange)
-        uOsmosisDepth: { value: 0.0 }  // 0-1, depth of penetration
-      },
-      vertexShader: `
+  _generateVertexShader() {
+    return `
         attribute float aType;
         attribute float aSeed;
         attribute vec3 aOriginalPos;
@@ -525,8 +473,11 @@ export class ParticleSystem {
             gl_PointSize *= 1.0 + uPulse;
           }
         }
-      `,
-      fragmentShader: `
+    `
+  }
+
+  _generateFragmentShader() {
+    return `
         uniform vec3 uColorNormal;
         uniform vec3 uColorGhost;
         uniform vec3 uColorFalling;
@@ -678,7 +629,56 @@ export class ParticleSystem {
           
           gl_FragColor = vec4(color, alpha);
         }
-      `,
+    `
+  }
+
+  _createMaterial() {
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uBreathPhase: { value: 0 },
+        uBreathAmount: { value: this.breathAmount },
+        uColorNormal: { value: this.colorNormal },
+        uColorGhost: { value: this.colorGhost },
+        uColorFalling: { value: this.colorFalling },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+        uSize: { value: 6.0 * this.sizeMultiplier },
+        uPauseFactor: { value: 0 },
+        uColorTint: { value: 1.0 },
+        uEvapFadeOutEnd: { value: 0.45 },
+        uEvapFadeInStart: { value: 0.55 },
+        uNoiseAmount: { value: 0.08 },
+        uNoiseSpeed: { value: 0.3 },
+        uGoosebumpsIntensity: { value: 0.0 },
+        uDynamicSizeAmount: { value: 0.0 },
+        uSparkleIntensity: { value: 0.0 },
+        uCursorWorldPos: { value: new THREE.Vector3(0, 0, 10) },
+        uCursorInfluenceRadius: { value: 0.8 },
+        uCursorInfluenceStrength: { value: 0.0 },
+        uCursorAttractionStrength: { value: 0.0 },
+        uRippleOrigin: { value: new THREE.Vector3(0, 0, 0) },
+        uRippleTime: { value: -1.0 },
+        uRippleSpeed: { value: 3.0 },
+        uRippleDecay: { value: 2.0 },
+        uGhostTrace0Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uGhostTrace1Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uGhostTrace2Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uGhostTrace0Alpha: { value: 0.0 },
+        uGhostTrace1Alpha: { value: 0.0 },
+        uGhostTrace2Alpha: { value: 0.0 },
+        uWarmTrace0Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uWarmTrace1Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uWarmTrace2Pos: { value: new THREE.Vector3(0, 0, 0) },
+        uWarmTrace0Alpha: { value: 0.0 },
+        uWarmTrace1Alpha: { value: 0.0 },
+        uWarmTrace2Alpha: { value: 0.0 },
+        uTouchGlowPos: { value: new THREE.Vector3(0, 0, 10) },
+        uTouchGlowIntensity: { value: 0.0 },
+        uPulse: { value: 0.0 },
+        uOsmosisDepth: { value: 0.0 }
+      },
+      vertexShader: this._generateVertexShader(),
+      fragmentShader: this._generateFragmentShader(),
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending

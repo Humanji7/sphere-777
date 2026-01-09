@@ -823,61 +823,68 @@ export class Sphere {
         // ═══════════════════════════════════════════════════════════
         // EYE INTEGRATION
         // ═══════════════════════════════════════════════════════════
-        if (this.eye) {
-            // ═══════════════════════════════════════════════════════════
-            // GAZE BEHAVIOR: Avoidance vs Seeking based on emotional state
-            // ═══════════════════════════════════════════════════════════
-            if (this.cursorOnSphere) {
-                if (this.currentPhase === PHASE.TRAUMA || this.currentColorProgress > 0.7) {
-                    // High tension / trauma: eye looks AWAY from cursor (avoidance)
-                    // "She can't look at what hurts her"
-                    this.eye.lookAwayFrom(this.cursorWorldPos, this.currentColorProgress)
-                } else if (this.currentPhase === PHASE.HEALING) {
-                    // Healing: eye actively SEEKS cursor (curiosity, reconnection)
-                    // "She's ready to trust again"
-                    this.eye.seekCursor(this.cursorWorldPos)
-                } else {
-                    // Normal gaze tracking
-                    this.eye.lookAt(this.cursorWorldPos)
-                }
-            }
-
-            // Pupil dilation based on tension (inverse: dilates when calm, contracts when tense)
-            // This mimics realistic fear response (pupils constrict under stress)
-            const pupilDilation = 1 - this.currentColorProgress
-            this.eye.setDilation(pupilDilation * 0.7)  // Max 70% dilation when calm
-
-            // Pass tension to eye for micro-tremors
-            this.eye.setTension(this.currentColorProgress)
-
-            // Pass cursor proximity for aura glow
-            this.eye.setCursorProximity(this.cursorInfluenceSmoothed)
-
-            // Set emotional phase for mystical visual effects
-            this.eye.setEmotionalPhase(this.currentPhase)
-
-            // Phase-specific eye reactions
-            switch (this.currentPhase) {
-                case PHASE.LISTENING:
-                    // Blink during listening pause
-                    if (this.listeningPauseProgress > 0.3 && this.listeningPauseProgress < 0.4) {
-                        this.eye.blink()
-                    }
-                    break
-
-                case PHASE.BLEEDING:
-                case PHASE.TRAUMA:
-                    // Eyes close during pain/trauma
-                    this.eye.setSleeping(true)
-                    break
-
-                default:
-                    this.eye.setSleeping(false)
-            }
-        }
+        this._applyEyeEffects()
 
         // Update particles
         this.particles.update(delta, this.particles.material.uniforms.uTime.value + delta)
+    }
+
+    /**
+     * Apply eye-related visual effects based on emotional state
+     */
+    _applyEyeEffects() {
+        if (!this.eye) return
+
+        // ═══════════════════════════════════════════════════════════
+        // GAZE BEHAVIOR: Avoidance vs Seeking based on emotional state
+        // ═══════════════════════════════════════════════════════════
+        if (this.cursorOnSphere) {
+            if (this.currentPhase === PHASE.TRAUMA || this.currentColorProgress > 0.7) {
+                // High tension / trauma: eye looks AWAY from cursor (avoidance)
+                // "She can't look at what hurts her"
+                this.eye.lookAwayFrom(this.cursorWorldPos, this.currentColorProgress)
+            } else if (this.currentPhase === PHASE.HEALING) {
+                // Healing: eye actively SEEKS cursor (curiosity, reconnection)
+                // "She's ready to trust again"
+                this.eye.seekCursor(this.cursorWorldPos)
+            } else {
+                // Normal gaze tracking
+                this.eye.lookAt(this.cursorWorldPos)
+            }
+        }
+
+        // Pupil dilation based on tension (inverse: dilates when calm, contracts when tense)
+        // This mimics realistic fear response (pupils constrict under stress)
+        const pupilDilation = 1 - this.currentColorProgress
+        this.eye.setDilation(pupilDilation * 0.7)  // Max 70% dilation when calm
+
+        // Pass tension to eye for micro-tremors
+        this.eye.setTension(this.currentColorProgress)
+
+        // Pass cursor proximity for aura glow
+        this.eye.setCursorProximity(this.cursorInfluenceSmoothed)
+
+        // Set emotional phase for mystical visual effects
+        this.eye.setEmotionalPhase(this.currentPhase)
+
+        // Phase-specific eye reactions
+        switch (this.currentPhase) {
+            case PHASE.LISTENING:
+                // Blink during listening pause
+                if (this.listeningPauseProgress > 0.3 && this.listeningPauseProgress < 0.4) {
+                    this.eye.blink()
+                }
+                break
+
+            case PHASE.BLEEDING:
+            case PHASE.TRAUMA:
+                // Eyes close during pain/trauma
+                this.eye.setSleeping(true)
+                break
+
+            default:
+                this.eye.setSleeping(false)
+        }
     }
 
     /**
@@ -971,13 +978,12 @@ export class Sphere {
         this.particles.setCursorAttraction(finalAttraction)
     }
 
-
     /**
      * Process gesture-based emotional reactions
      * Maps gesture intent to sphere behavior
      */
     _processGesture(delta, inputState) {
-        const { gestureType, angularVelocity, directionalConsistency, touchIntensity = 0 } = inputState
+        const { gestureType, touchIntensity = 0 } = inputState
         const reaction = this.gestureReaction
 
         // Touch intensity modifier: 1.0 for mouse, 1.0-2.0 for touch based on pressure
@@ -986,186 +992,38 @@ export class Sphere {
         // ═══════════════════════════════════════════════════════════
         // DECAY: All reactions fade over time
         // ═══════════════════════════════════════════════════════════
-        reaction.strokeCalm = Math.max(0, reaction.strokeCalm - delta * 0.3)
-        reaction.pokeStartle = Math.max(0, reaction.pokeStartle - delta * 2.0)  // Fast decay
-        reaction.orbitSync = Math.max(0, reaction.orbitSync - delta * 0.4)
-        reaction.trembleNervous = Math.max(0, reaction.trembleNervous - delta * 0.5)
-        // New gesture decays (Stage 7)
-        reaction.tapPulse = Math.max(0, reaction.tapPulse - delta * 3.0)  // Very fast decay
-        reaction.flickPush = Math.max(0, reaction.flickPush - delta * 2.5)  // Fast decay
-        reaction.hesitationSadness = Math.max(0, reaction.hesitationSadness - delta * 0.15)  // Slow decay
-        reaction.spiralTrance = Math.max(0, reaction.spiralTrance - delta * 0.2)  // Slow decay
+        this._decayGestureReactions(delta)
 
         // ═══════════════════════════════════════════════════════════
-        // GESTURE REACTIONS
+        // GESTURE REACTIONS — via handler methods
         // ═══════════════════════════════════════════════════════════
+        const context = { delta, inputState, intensityModifier, reaction }
+
         switch (gestureType) {
             case 'stroke':
-                // CALMING: reduce tension, deepen breathing, press particles inward
-                reaction.strokeCalm = Math.min(1, reaction.strokeCalm + delta * 0.8)
-
-                // Record positive event in memory
-                if (this.memory) this.memory.recordEvent('stroke', delta)
-
-                // Slower, deeper breathing
-                this.targetBreathSpeed = this.baseBreathSpeed * (0.7 - reaction.strokeCalm * 0.2)
-
-                // Reduce tension actively
-                this.tensionTime = Math.max(0, this.tensionTime - delta * 2)
-
-                // Press particles closer to sphere (reduce noise displacement)
-                const baseNoise = 0.08
-                const pressedNoise = baseNoise * (1 - reaction.strokeCalm * 0.5)
-                this.particles.setNoiseAmount(pressedNoise)
-
-                // ═══════════════════════════════════════════════════════════
-                // WARM TRACE: Create when prolonged stroke in same zone
-                // "She remembers where it was soft"
-                // ═══════════════════════════════════════════════════════════
-                if (this.memory && this.cursorOnSphere) {
-                    const strokeZoneDuration = inputState.strokeZoneDuration || 0
-                    const threshold = this.memory.config.warmTraceThreshold
-                    const minInterval = this.memory.config.warmTraceMinInterval
-                    const timeSince = this.memory.currentElapsed - this.memory.lastWarmTraceTime
-
-                    if (strokeZoneDuration > threshold && timeSince > minInterval) {
-                        this.memory.createWarmTrace()
-                    }
-                }
+                this._handleStroke(context)
                 break
-
             case 'poke':
-                // STARTLE: instant tension spike, goosebumps burst, trigger ripple
-                if (reaction.pokeStartle < 0.1) {
-                    // Only trigger once per poke
-                    reaction.pokeStartle = 1.0
-
-                    // Record negative event in memory
-                    if (this.memory) this.memory.recordEvent('poke', intensityModifier)
-
-                    // Instant tension spike (boosted by touch intensity)
-                    this.tensionTime = Math.min(0.5, this.tensionTime + 0.3 * intensityModifier)
-
-                    // Trigger ripple from cursor position
-                    if (this.cursorOnSphere) {
-                        // Convert world pos to local (undo mesh rotation)
-                        const localOrigin = this.cursorWorldPos.clone()
-                            .applyMatrix4(this.particles.mesh.matrixWorld.clone().invert())
-                        this.particles.triggerRipple(localOrigin)
-                    }
-                }
+                this._handlePoke(context)
                 break
-
             case 'orbit':
-                // HYPNOSIS (INVERSE): slow orbit = slow breathing, fast = faster
-                reaction.orbitSync = Math.min(1, reaction.orbitSync + delta * 0.5)
-
-                // Inverse relationship: slower orbit = calmer
-                const orbitSpeed = Math.abs(angularVelocity)
-                // Low orbit speed (< 1.5) -> breathing slows to 0.5x
-                // High orbit speed (> 3.0) -> breathing rises to 1.2x
-                const orbitBreathMultiplier = 0.5 + Math.min(orbitSpeed, 3.0) * 0.23
-                this.targetBreathSpeed = this.baseBreathSpeed * orbitBreathMultiplier
+                this._handleOrbit(context)
                 break
-
             case 'tremble':
-                // NERVOUS: goosebumps max, quicker breathing (boosted by touch intensity)
-                reaction.trembleNervous = Math.min(1, reaction.trembleNervous + delta * 1.5 * intensityModifier)
-
-                // Record negative event in memory
-                if (this.memory) this.memory.recordEvent('tremble', delta)
-
-                // Accelerate breathing
-                this.targetBreathSpeed = this.baseBreathSpeed * (1.3 + reaction.trembleNervous * 0.4)
-
-                // Increase tension (can lead to bleeding) - also boosted
-                this.tensionTime = Math.min(0.4, this.tensionTime + delta * 0.5 * intensityModifier)
+                this._handleTremble(context)
                 break
-
             case 'tap':
-                // TAP: Brief affirmation pulse — "я тут" / "I'm here"
-                if (reaction.tapPulse < 0.1) {
-                    reaction.tapPulse = 1.0
-
-                    // Brief size pulse (15% boost)
-                    this.particles.setPulse(0.15)
-
-                    // Trigger soft glow at touch position
-                    if (this.cursorOnSphere) {
-                        this.particles.setTouchGlow(this.cursorWorldPos, 0.5)
-                    }
-
-                    // Eye briefly dilates (friendly acknowledgment)
-                    if (this.eye) {
-                        this.eye.setDilation(0.8)
-                    }
-                }
+                this._handleTap(context)
                 break
-
             case 'flick':
-                // FLICK: Fast dismissive gesture — like poke but exits screen
-                if (reaction.flickPush < 0.1) {
-                    reaction.flickPush = 1.0
-
-                    // Record negative event (like poke)
-                    if (this.memory) this.memory.recordEvent('poke', intensityModifier * 0.8)
-
-                    // Tension spike (slightly less than poke)
-                    this.tensionTime = Math.min(0.4, this.tensionTime + 0.2 * intensityModifier)
-
-                    // Trigger ripple with push direction
-                    if (this.cursorOnSphere) {
-                        const localOrigin = this.cursorWorldPos.clone()
-                            .applyMatrix4(this.particles.mesh.matrixWorld.clone().invert())
-                        this.particles.triggerRipple(localOrigin)
-                    }
-
-                    // Create ghost trace (cold memory)
-                    if (this.memory && this.cursorOnSphere) {
-                        this.memory.createGhostTrace()
-                        this.memory.setLatestGhostTracePosition(this.cursorWorldPos)
-                    }
-                }
+                this._handleFlick(context)
                 break
-
             case 'hesitation':
-                // HESITATION: Approach → pause → retreat — sphere feels the uncertainty
-                // "Она грустит + зеркалит" — sadness + mirroring
-                reaction.hesitationSadness = Math.min(1, reaction.hesitationSadness + delta * 1.5)
-
-                // Slow down breathing (heaviness, sadness)
-                this.targetBreathSpeed = this.baseBreathSpeed * (0.5 - reaction.hesitationSadness * 0.2)
-
-                // Compress particles slightly (withdrawal)
-                const compressionAmount = reaction.hesitationSadness * 0.03
-                this.particles.setNoiseAmount(0.08 - compressionAmount)
-
-                // Eye seeks cursor (longing, wanting connection)
-                if (this.eye && this.cursorOnSphere) {
-                    this.eye.seekCursor(this.cursorWorldPos)
-                }
+                this._handleHesitation(context)
                 break
-
             case 'spiral':
-                // SPIRAL: Deep trance — orbit + shrinking radius
-                // "Глубокий транс" — breathing stops, pupil max, particles pause
-                reaction.spiralTrance = Math.min(1, reaction.spiralTrance + delta * 0.8)
-
-                // Breathing stops gradually
-                this.targetBreathSpeed = this.baseBreathSpeed * (1 - reaction.spiralTrance * 0.9)
-
-                // Pupil dilates to maximum (hypnosis)
-                if (this.eye) {
-                    this.eye.setDilation(0.3 + reaction.spiralTrance * 0.7)  // 0.3 → 1.0
-                }
-
-                // Particles slow down (entering trance)
-                this.particles.setPauseFactor(reaction.spiralTrance * 0.6)
-
-                // Reduce tension (calming trance)
-                this.tensionTime = Math.max(0, this.tensionTime - delta * reaction.spiralTrance)
+                this._handleSpiral(context)
                 break
-
             default:
                 // Reset noise amount when not stroking
                 if (reaction.strokeCalm < 0.01) {
@@ -1176,6 +1034,216 @@ export class Sphere {
         // ═══════════════════════════════════════════════════════════
         // APPLY GESTURE EFFECTS TO GOOSEBUMPS
         // ═══════════════════════════════════════════════════════════
+        this._applyGestureGoosebumps()
+
+        // ═══════════════════════════════════════════════════════════
+        // SOUND INTEGRATION
+        // ═══════════════════════════════════════════════════════════
+        this._applyGestureSound(gestureType, intensityModifier)
+
+        // Update ripple animation
+        this.particles.updateRipple(delta)
+    }
+
+    /**
+     * Decay all gesture reactions over time
+     */
+    _decayGestureReactions(delta) {
+        const reaction = this.gestureReaction
+        reaction.strokeCalm = Math.max(0, reaction.strokeCalm - delta * 0.3)
+        reaction.pokeStartle = Math.max(0, reaction.pokeStartle - delta * 2.0)  // Fast decay
+        reaction.orbitSync = Math.max(0, reaction.orbitSync - delta * 0.4)
+        reaction.trembleNervous = Math.max(0, reaction.trembleNervous - delta * 0.5)
+        // New gesture decays (Stage 7)
+        reaction.tapPulse = Math.max(0, reaction.tapPulse - delta * 3.0)  // Very fast decay
+        reaction.flickPush = Math.max(0, reaction.flickPush - delta * 2.5)  // Fast decay
+        reaction.hesitationSadness = Math.max(0, reaction.hesitationSadness - delta * 0.15)  // Slow decay
+        reaction.spiralTrance = Math.max(0, reaction.spiralTrance - delta * 0.2)  // Slow decay
+    }
+
+    /**
+     * STROKE: Calming — reduce tension, deepen breathing, press particles inward
+     */
+    _handleStroke({ delta, inputState, reaction }) {
+        reaction.strokeCalm = Math.min(1, reaction.strokeCalm + delta * 0.8)
+
+        // Record positive event in memory
+        if (this.memory) this.memory.recordEvent('stroke', delta)
+
+        // Slower, deeper breathing
+        this.targetBreathSpeed = this.baseBreathSpeed * (0.7 - reaction.strokeCalm * 0.2)
+
+        // Reduce tension actively
+        this.tensionTime = Math.max(0, this.tensionTime - delta * 2)
+
+        // Press particles closer to sphere (reduce noise displacement)
+        const baseNoise = 0.08
+        const pressedNoise = baseNoise * (1 - reaction.strokeCalm * 0.5)
+        this.particles.setNoiseAmount(pressedNoise)
+
+        // WARM TRACE: Create when prolonged stroke in same zone
+        // "She remembers where it was soft"
+        if (this.memory && this.cursorOnSphere) {
+            const strokeZoneDuration = inputState.strokeZoneDuration || 0
+            const threshold = this.memory.config.warmTraceThreshold
+            const minInterval = this.memory.config.warmTraceMinInterval
+            const timeSince = this.memory.currentElapsed - this.memory.lastWarmTraceTime
+
+            if (strokeZoneDuration > threshold && timeSince > minInterval) {
+                this.memory.createWarmTrace()
+            }
+        }
+    }
+
+    /**
+     * POKE: Startle — instant tension spike, goosebumps burst, trigger ripple
+     */
+    _handlePoke({ intensityModifier, reaction }) {
+        if (reaction.pokeStartle >= 0.1) return  // Only trigger once per poke
+
+        reaction.pokeStartle = 1.0
+
+        // Record negative event in memory
+        if (this.memory) this.memory.recordEvent('poke', intensityModifier)
+
+        // Instant tension spike (boosted by touch intensity)
+        this.tensionTime = Math.min(0.5, this.tensionTime + 0.3 * intensityModifier)
+
+        // Trigger ripple from cursor position
+        if (this.cursorOnSphere) {
+            const localOrigin = this.cursorWorldPos.clone()
+                .applyMatrix4(this.particles.mesh.matrixWorld.clone().invert())
+            this.particles.triggerRipple(localOrigin)
+        }
+    }
+
+    /**
+     * ORBIT: Hypnosis (inverse) — slow orbit = slow breathing, fast = faster
+     */
+    _handleOrbit({ delta, inputState, reaction }) {
+        reaction.orbitSync = Math.min(1, reaction.orbitSync + delta * 0.5)
+
+        // Inverse relationship: slower orbit = calmer
+        const orbitSpeed = Math.abs(inputState.angularVelocity)
+        // Low orbit speed (<1.5) -> breathing slows to 0.5x
+        // High orbit speed (>3.0) -> breathing rises to 1.2x
+        const orbitBreathMultiplier = 0.5 + Math.min(orbitSpeed, 3.0) * 0.23
+        this.targetBreathSpeed = this.baseBreathSpeed * orbitBreathMultiplier
+    }
+
+    /**
+     * TREMBLE: Nervous — goosebumps max, quicker breathing
+     */
+    _handleTremble({ delta, intensityModifier, reaction }) {
+        reaction.trembleNervous = Math.min(1, reaction.trembleNervous + delta * 1.5 * intensityModifier)
+
+        // Record negative event in memory
+        if (this.memory) this.memory.recordEvent('tremble', delta)
+
+        // Accelerate breathing
+        this.targetBreathSpeed = this.baseBreathSpeed * (1.3 + reaction.trembleNervous * 0.4)
+
+        // Increase tension (can lead to bleeding) - also boosted
+        this.tensionTime = Math.min(0.4, this.tensionTime + delta * 0.5 * intensityModifier)
+    }
+
+    /**
+     * TAP: Brief affirmation pulse — "я тут" / "I'm here"
+     */
+    _handleTap({ reaction }) {
+        if (reaction.tapPulse >= 0.1) return  // Only trigger once per tap
+
+        reaction.tapPulse = 1.0
+
+        // Brief size pulse (15% boost)
+        this.particles.setPulse(0.15)
+
+        // Trigger soft glow at touch position
+        if (this.cursorOnSphere) {
+            this.particles.setTouchGlow(this.cursorWorldPos, 0.5)
+        }
+
+        // Eye briefly dilates (friendly acknowledgment)
+        if (this.eye) {
+            this.eye.setDilation(0.8)
+        }
+    }
+
+    /**
+     * FLICK: Fast dismissive gesture — like poke but exits screen
+     */
+    _handleFlick({ intensityModifier, reaction }) {
+        if (reaction.flickPush >= 0.1) return  // Only trigger once per flick
+
+        reaction.flickPush = 1.0
+
+        // Record negative event (like poke)
+        if (this.memory) this.memory.recordEvent('poke', intensityModifier * 0.8)
+
+        // Tension spike (slightly less than poke)
+        this.tensionTime = Math.min(0.4, this.tensionTime + 0.2 * intensityModifier)
+
+        // Trigger ripple with push direction
+        if (this.cursorOnSphere) {
+            const localOrigin = this.cursorWorldPos.clone()
+                .applyMatrix4(this.particles.mesh.matrixWorld.clone().invert())
+            this.particles.triggerRipple(localOrigin)
+        }
+
+        // Create ghost trace (cold memory)
+        if (this.memory && this.cursorOnSphere) {
+            this.memory.createGhostTrace()
+            this.memory.setLatestGhostTracePosition(this.cursorWorldPos)
+        }
+    }
+
+    /**
+     * HESITATION: Approach → pause → retreat — sphere feels the uncertainty
+     * "Она грустит + зеркалит" — sadness + mirroring
+     */
+    _handleHesitation({ delta, reaction }) {
+        reaction.hesitationSadness = Math.min(1, reaction.hesitationSadness + delta * 1.5)
+
+        // Slow down breathing (heaviness, sadness)
+        this.targetBreathSpeed = this.baseBreathSpeed * (0.5 - reaction.hesitationSadness * 0.2)
+
+        // Compress particles slightly (withdrawal)
+        const compressionAmount = reaction.hesitationSadness * 0.03
+        this.particles.setNoiseAmount(0.08 - compressionAmount)
+
+        // Eye seeks cursor (longing, wanting connection)
+        if (this.eye && this.cursorOnSphere) {
+            this.eye.seekCursor(this.cursorWorldPos)
+        }
+    }
+
+    /**
+     * SPIRAL: Deep trance — orbit + shrinking radius
+     * "Глубокий транс" — breathing stops, pupil max, particles pause
+     */
+    _handleSpiral({ delta, reaction }) {
+        reaction.spiralTrance = Math.min(1, reaction.spiralTrance + delta * 0.8)
+
+        // Breathing stops gradually
+        this.targetBreathSpeed = this.baseBreathSpeed * (1 - reaction.spiralTrance * 0.9)
+
+        // Pupil dilates to maximum (hypnosis)
+        if (this.eye) {
+            this.eye.setDilation(0.3 + reaction.spiralTrance * 0.7)  // 0.3 → 1.0
+        }
+
+        // Particles slow down (entering trance)
+        this.particles.setPauseFactor(reaction.spiralTrance * 0.6)
+
+        // Reduce tension (calming trance)
+        this.tensionTime = Math.max(0, this.tensionTime - delta * reaction.spiralTrance)
+    }
+
+    /**
+     * Apply gesture effects to goosebumps uniform
+     */
+    _applyGestureGoosebumps() {
+        const reaction = this.gestureReaction
         const gestureGoosebumps =
             reaction.pokeStartle * 0.08 +   // Poke = burst
             reaction.trembleNervous * 0.06   // Tremble = sustained
@@ -1188,62 +1256,57 @@ export class Sphere {
         const targetGoosebumps = Math.max(currentTensionGoosebumps, maxGestureContribution)
         this.particles.material.uniforms.uGoosebumpsIntensity.value =
             currentTensionGoosebumps + (targetGoosebumps - currentTensionGoosebumps) * 0.15
+    }
 
-        // ═══════════════════════════════════════════════════════════
-        // SOUND INTEGRATION
-        // ═══════════════════════════════════════════════════════════
-        if (this.soundManager) {
-            // Ambient hum tracks emotional tension
-            this.soundManager.setAmbientIntensity(this.currentColorProgress)
+    /**
+     * Apply gesture-specific sounds
+     */
+    _applyGestureSound(gestureType, intensityModifier) {
+        if (!this.soundManager) return
 
-            // Gesture-specific sounds
-            switch (gestureType) {
-                case 'stroke':
-                    // Play soft chime when actively stroking
-                    if (reaction.strokeCalm > 0.2) {
-                        this.soundManager.playGestureSound('stroke', reaction.strokeCalm)
-                    }
-                    break
-                case 'poke':
-                    // Sharp click on startle
-                    if (reaction.pokeStartle > 0.8) {
-                        this.soundManager.playGestureSound('poke', intensityModifier)
-                    }
-                    break
-                case 'tremble':
-                    // Granular nervousness
-                    if (reaction.trembleNervous > 0.3) {
-                        this.soundManager.playGestureSound('tremble', reaction.trembleNervous)
-                    }
-                    break
-                case 'tap':
-                    // Soft bing on tap
-                    if (reaction.tapPulse > 0.8) {
-                        this.soundManager.playGestureSound('tap', 0.5)
-                    }
-                    break
-                case 'flick':
-                    // Click + whoosh on flick
-                    if (reaction.flickPush > 0.8) {
-                        this.soundManager.playGestureSound('flick', intensityModifier)
-                    }
-                    break
-                case 'spiral':
-                    // Low drone fade-in for trance
-                    if (reaction.spiralTrance > 0.3) {
-                        this.soundManager.playGestureSound('spiral', reaction.spiralTrance)
-                    }
-                    break
-            }
+        const reaction = this.gestureReaction
 
-            // Bleeding sound when evaporating
-            if (this.currentPhase === 'bleeding') {
-                this.soundManager.triggerBleeding(this.currentColorProgress)
-            }
+        // Ambient hum tracks emotional tension
+        this.soundManager.setAmbientIntensity(this.currentColorProgress)
+
+        // Gesture-specific sounds
+        switch (gestureType) {
+            case 'stroke':
+                if (reaction.strokeCalm > 0.2) {
+                    this.soundManager.playGestureSound('stroke', reaction.strokeCalm)
+                }
+                break
+            case 'poke':
+                if (reaction.pokeStartle > 0.8) {
+                    this.soundManager.playGestureSound('poke', intensityModifier)
+                }
+                break
+            case 'tremble':
+                if (reaction.trembleNervous > 0.3) {
+                    this.soundManager.playGestureSound('tremble', reaction.trembleNervous)
+                }
+                break
+            case 'tap':
+                if (reaction.tapPulse > 0.8) {
+                    this.soundManager.playGestureSound('tap', 0.5)
+                }
+                break
+            case 'flick':
+                if (reaction.flickPush > 0.8) {
+                    this.soundManager.playGestureSound('flick', intensityModifier)
+                }
+                break
+            case 'spiral':
+                if (reaction.spiralTrance > 0.3) {
+                    this.soundManager.playGestureSound('spiral', reaction.spiralTrance)
+                }
+                break
         }
 
-        // Update ripple animation
-        this.particles.updateRipple(delta)
+        // Bleeding sound when evaporating
+        if (this.currentPhase === 'bleeding') {
+            this.soundManager.triggerBleeding(this.currentColorProgress)
+        }
     }
 
     // Public API
@@ -1261,5 +1324,43 @@ export class Sphere {
 
     dispose() {
         // Cleanup if needed
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // MATH UTILITIES
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Linear interpolation between two values
+     * @param {number} a - Start value
+     * @param {number} b - End value
+     * @param {number} t - Interpolation factor (0-1)
+     * @returns {number} Interpolated value
+     */
+    _lerp(a, b, t) {
+        return a + (b - a) * t
+    }
+
+    /**
+     * Clamp a value between min and max
+     * @param {number} value - Value to clamp
+     * @param {number} min - Minimum value
+     * @param {number} max - Maximum value
+     * @returns {number} Clamped value
+     */
+    _clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value))
+    }
+
+    /**
+     * Smoothstep interpolation (ease in-out)
+     * @param {number} edge0 - Lower edge
+     * @param {number} edge1 - Upper edge
+     * @param {number} x - Input value
+     * @returns {number} Smoothly interpolated value (0-1)
+     */
+    _smoothstep(edge0, edge1, x) {
+        const t = this._clamp((x - edge0) / (edge1 - edge0), 0, 1)
+        return t * t * (3 - 2 * t)
     }
 }

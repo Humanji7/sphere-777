@@ -277,28 +277,8 @@ export class Eye {
     return point
   }
 
-  _createMaterial() {
-    this.material = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
-        uSize: { value: 8.0 * this.sizeMultiplier },
-        uIrisColor: { value: this.irisColor },
-        uPupilColor: { value: this.pupilColor },
-        uLidColor: { value: this.lidColor },
-        uSoulSparkColor: { value: this.currentSoulColor },
-        uGazeOffset: { value: new THREE.Vector2(0, 0) },
-        uPupilDilation: { value: 0 },
-        uBlinkProgress: { value: 0 },
-        uBlinkVelocity: { value: 0 },
-        uTension: { value: 0 },
-        uIrisRotation: { value: 0 },
-        uAuraIntensity: { value: 0.2 },
-        uListeningTime: { value: 0 },
-        uEmotionalState: { value: 0 },
-        uSoulSparkPhase: { value: 0 }
-      },
-      vertexShader: `
+  _generateVertexShader() {
+    return `
         attribute float aType;
         attribute float aRingIndex;
         attribute float aSeed;
@@ -463,8 +443,11 @@ export class Eye {
           
           gl_PointSize = baseSize;
         }
-      `,
-      fragmentShader: `
+    `
+  }
+
+  _generateFragmentShader() {
+    return `
         uniform vec3 uIrisColor;
         uniform vec3 uPupilColor;
         uniform vec3 uLidColor;
@@ -600,7 +583,32 @@ export class Eye {
           
           gl_FragColor = vec4(color, alpha);
         }
-      `,
+    `
+  }
+
+  _createMaterial() {
+    this.material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+        uSize: { value: 8.0 * this.sizeMultiplier },
+        uIrisColor: { value: this.irisColor },
+        uPupilColor: { value: this.pupilColor },
+        uLidColor: { value: this.lidColor },
+        uSoulSparkColor: { value: this.currentSoulColor },
+        uGazeOffset: { value: new THREE.Vector2(0, 0) },
+        uPupilDilation: { value: 0 },
+        uBlinkProgress: { value: 0 },
+        uBlinkVelocity: { value: 0 },
+        uTension: { value: 0 },
+        uIrisRotation: { value: 0 },
+        uAuraIntensity: { value: 0.2 },
+        uListeningTime: { value: 0 },
+        uEmotionalState: { value: 0 },
+        uSoulSparkPhase: { value: 0 }
+      },
+      vertexShader: this._generateVertexShader(),
+      fragmentShader: this._generateFragmentShader(),
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending
