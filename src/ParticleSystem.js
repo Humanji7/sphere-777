@@ -878,7 +878,8 @@ export class ParticleSystem {
    */
   applyRolling(cursorDelta, strength) {
     // Add to velocity (with damping for smoothness)
-    this.rollingVelocityX += cursorDelta.y * strength * 0.5
+    // Note: cursorDelta.y is negated because cursor up should roll sphere toward camera
+    this.rollingVelocityX += -cursorDelta.y * strength * 0.5
     this.rollingVelocityY += cursorDelta.x * strength * 0.5
   }
 
