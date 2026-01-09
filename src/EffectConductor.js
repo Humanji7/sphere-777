@@ -7,46 +7,45 @@
  * Philosophy: The sphere should feel alive, not programmed.
  */
 
+// Effect configuration: probability weights, durations, cooldowns
+const EFFECT_CONFIG = {
+    chromaticAberration: {
+        weight: 0.25,           // Base probability
+        minDuration: 1.5,       // Min active duration (seconds)
+        maxDuration: 4.0,       // Max active duration
+        minCooldown: 2.0,
+        maxCooldown: 6.0,
+        requiresTension: 0.3    // Minimum tension to trigger
+    },
+    dynamicSize: {
+        weight: 0.35,
+        minDuration: 3.0,
+        maxDuration: 8.0,
+        minCooldown: 1.0,
+        maxCooldown: 4.0,
+        requiresTension: 0.0    // Can trigger at any tension
+    },
+    sparkles: {
+        weight: 0.30,
+        minDuration: 2.0,
+        maxDuration: 6.0,
+        minCooldown: 3.0,
+        maxCooldown: 8.0,
+        requiresTension: 0.1
+    }
+}
+
 export class EffectConductor {
     constructor() {
-        // Effect pool with probability weights
-        // Higher weight = more likely to trigger when conditions allow
-        this.effects = {
-            chromaticAberration: {
+        // Initialize effect runtime state from config
+        this.effects = {}
+        for (const [name, config] of Object.entries(EFFECT_CONFIG)) {
+            this.effects[name] = {
+                ...config,
                 active: false,
                 intensity: 0,           // Current intensity (0-1)
                 targetIntensity: 0,     // Target (smoothly interpolated)
-                weight: 0.25,           // Base probability
-                minDuration: 1.5,       // Min active duration (seconds)
-                maxDuration: 4.0,       // Max active duration
-                cooldown: 0,            // Time until can activate again
-                minCooldown: 2.0,
-                maxCooldown: 6.0,
-                requiresTension: 0.3    // Minimum tension to trigger
-            },
-            dynamicSize: {
-                active: false,
-                intensity: 0,
-                targetIntensity: 0,
-                weight: 0.35,
-                minDuration: 3.0,
-                maxDuration: 8.0,
-                cooldown: 0,
-                minCooldown: 1.0,
-                maxCooldown: 4.0,
-                requiresTension: 0.0    // Can trigger at any tension
-            },
-            sparkles: {
-                active: false,
-                intensity: 0,
-                targetIntensity: 0,
-                weight: 0.30,
-                minDuration: 2.0,
-                maxDuration: 6.0,
-                cooldown: 0,
-                minCooldown: 3.0,
-                maxCooldown: 8.0,
-                requiresTension: 0.1
+                cooldown: 0             // Time until can activate again
             }
         }
 
@@ -110,46 +109,36 @@ export class EffectConductor {
      * @private
      */
     _rollDice(tension) {
-        // Count currently active effects
+        // Guard: skip if at max concurrent effects
         const activeCount = Object.values(this.effects).filter(e => e.active).length
-
-        // Skip if at max concurrent effects
         if (activeCount >= this.maxConcurrentEffects) return
 
         // Build list of eligible effects
-        const eligible = []
-        for (const [name, effect] of Object.entries(this.effects)) {
-            if (!effect.active &&
-                effect.cooldown <= 0 &&
-                tension >= effect.requiresTension) {
-                eligible.push({ name, effect })
-            }
-        }
+        const eligible = Object.entries(this.effects)
+            .filter(([_, e]) => !e.active && e.cooldown <= 0 && tension >= e.requiresTension)
+            .map(([name, effect]) => ({ name, effect }))
 
+        // Guard: no eligible effects
         if (eligible.length === 0) return
 
-        // Calculate total weight
-        let totalWeight = 0
-        for (const { effect } of eligible) {
-            // Weight scales with tension (more likely when tense)
-            const tensionBoost = 1.0 + tension * 0.5
-            totalWeight += effect.weight * tensionBoost
-        }
+        // Calculate total weight (scales with tension)
+        const tensionBoost = 1.0 + tension * 0.5
+        const totalWeight = eligible.reduce((sum, { effect }) =>
+            sum + effect.weight * tensionBoost, 0)
 
-        // Roll
-        let roll = Math.random() * totalWeight * 2  // *2 makes activation ~50% chance per roll
+        // Roll (*2 makes activation ~50% chance per roll)
+        const roll = Math.random() * totalWeight * 2
 
-        // Lower roll = higher chance something triggers
-        if (roll > totalWeight) return  // Nothing triggers this roll
+        // Guard: nothing triggers this roll
+        if (roll > totalWeight) return
 
         // Weighted selection
         let cumulative = 0
         for (const { name, effect } of eligible) {
-            const tensionBoost = 1.0 + tension * 0.5
             cumulative += effect.weight * tensionBoost
             if (roll <= cumulative) {
                 this._activateEffect(name, tension)
-                break
+                return
             }
         }
     }
