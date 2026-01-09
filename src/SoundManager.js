@@ -64,6 +64,78 @@ export class SoundManager {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // AUDIO HELPERS — Common patterns extracted for reusability
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Create an oscillator with gain node, pre-connected to destination
+     * @param {string} type - Oscillator type: 'sine', 'triangle', 'sawtooth', 'square'
+     * @param {number} frequency - Base frequency in Hz
+     * @param {AudioNode} destination - Where to connect output
+     * @returns {{ osc: OscillatorNode, gain: GainNode }}
+     */
+    _createOscillator(type, frequency, destination) {
+        const osc = this.audioContext.createOscillator()
+        osc.type = type
+        osc.frequency.value = frequency
+
+        const gain = this.audioContext.createGain()
+        gain.gain.value = 0
+
+        osc.connect(gain)
+        gain.connect(destination)
+
+        return { osc, gain }
+    }
+
+    /**
+     * Apply ADSR-like envelope to a gain node
+     * @param {GainNode} gainNode - Target gain node
+     * @param {number} startTime - AudioContext time to start
+     * @param {{ attack: number, peak: number, decay: number, end: number }} envelope
+     */
+    _applyEnvelope(gainNode, startTime, envelope) {
+        const { attack = 0.02, peak = 0.3, decay = 0.3, end = 0.001 } = envelope
+        gainNode.gain.setValueAtTime(0, startTime)
+        gainNode.gain.linearRampToValueAtTime(peak, startTime + attack)
+        gainNode.gain.exponentialRampToValueAtTime(end, startTime + attack + decay)
+    }
+
+    /**
+     * Stop and cleanup an oscillator with fade-out
+     * @param {OscillatorNode|null} osc - Oscillator to stop
+     * @param {GainNode|null} gain - Associated gain node
+     * @param {number} fadeTime - Fade duration in seconds
+     * @param {Function} callback - Called after cleanup
+     */
+    _stopOscillatorWithFade(osc, gain, fadeTime, callback) {
+        if (!osc) return
+
+        const now = this.audioContext.currentTime
+
+        if (gain) {
+            gain.gain.linearRampToValueAtTime(0, now + fadeTime)
+        }
+
+        setTimeout(() => {
+            this._cleanupNode(osc, true)
+            this._cleanupNode(gain)
+            if (callback) callback()
+        }, fadeTime * 1000 + 50)
+    }
+
+    /**
+     * Stop and disconnect an audio node, optionally stop if oscillator
+     * @param {AudioNode|null} node - Node to cleanup
+     * @param {boolean} isOscillator - If true, call stop() first
+     */
+    _cleanupNode(node, isOscillator = false) {
+        if (!node) return
+        if (isOscillator && node.stop) node.stop()
+        node.disconnect()
+    }
+
     /**
      * Initialize the ambient "breathing" hum
      * Low frequency oscillator modulated by LFO for organic feel
@@ -402,29 +474,16 @@ export class SoundManager {
 
         // Schedule stop after fade
         setTimeout(() => {
-            if (this.recognitionOsc1) {
-                this.recognitionOsc1.stop()
-                this.recognitionOsc1.disconnect()
-                this.recognitionOsc1 = null
-            }
-            if (this.recognitionOsc2) {
-                this.recognitionOsc2.stop()
-                this.recognitionOsc2.disconnect()
-                this.recognitionOsc2 = null
-            }
-            if (this.recognitionLFO) {
-                this.recognitionLFO.stop()
-                this.recognitionLFO.disconnect()
-                this.recognitionLFO = null
-            }
-            if (this.recognitionLFOGain) {
-                this.recognitionLFOGain.disconnect()
-                this.recognitionLFOGain = null
-            }
-            if (this.recognitionGain) {
-                this.recognitionGain.disconnect()
-                this.recognitionGain = null
-            }
+            this._cleanupNode(this.recognitionOsc1, true)
+            this._cleanupNode(this.recognitionOsc2, true)
+            this._cleanupNode(this.recognitionLFO, true)
+            this._cleanupNode(this.recognitionLFOGain)
+            this._cleanupNode(this.recognitionGain)
+            this.recognitionOsc1 = null
+            this.recognitionOsc2 = null
+            this.recognitionLFO = null
+            this.recognitionLFOGain = null
+            this.recognitionGain = null
             this.recognitionActive = false
         }, fadeTime * 1000 + 50)
     }
@@ -494,15 +553,10 @@ export class SoundManager {
 
         // Schedule stop after fade
         setTimeout(() => {
-            if (this.osmosisOsc) {
-                this.osmosisOsc.stop()
-                this.osmosisOsc.disconnect()
-                this.osmosisOsc = null
-            }
-            if (this.osmosisGain) {
-                this.osmosisGain.disconnect()
-                this.osmosisGain = null
-            }
+            this._cleanupNode(this.osmosisOsc, true)
+            this._cleanupNode(this.osmosisGain)
+            this.osmosisOsc = null
+            this.osmosisGain = null
             this.osmosisActive = false
         }, fadeTime * 1000 + 50)
     }
