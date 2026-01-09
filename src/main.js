@@ -200,6 +200,9 @@ class App {
             this.eye.setSphereRotation(this.particleSystem.mesh.rotation)
             this.eye.update(delta, elapsed)
 
+            // Collect traces once per frame (used by both SonicOrganism and ParticleSystem)
+            const ghostTraces = this.memoryManager.getActiveGhostTraces()
+
             // ═══════════════════════════════════════════════════════════
             // SONIC ORGANISM: Continuous sound synthesis every frame
             // ═══════════════════════════════════════════════════════════
@@ -221,7 +224,7 @@ class App {
                         gestureType: inputState.gestureType
                     },
                     // Ghost traces for frozen grain loops
-                    ghostTraces: this.memoryManager.getActiveGhostTraces()
+                    ghostTraces
                 }, elapsed)
             }
 
@@ -246,7 +249,6 @@ class App {
             this.particleSystem.setPeaceColorMod(colorMod.saturationMod, colorMod.lightnessMod)
 
             // Pass traces to particle system for rendering
-            const ghostTraces = this.memoryManager.getActiveGhostTraces()
             this.particleSystem.setGhostTraces(ghostTraces)
 
             const warmTraces = this.memoryManager.getActiveWarmTraces()
