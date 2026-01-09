@@ -10,11 +10,53 @@
  * - 'tremble': Fast, chaotic movement
  * - 'moving': General movement (no specific gesture)
  */
+// Centralized thresholds for gesture recognition (tunable)
+const THRESHOLDS = {
+    // Velocity states
+    IDLE_VELOCITY: 0.01,
+    FRANTIC_VELOCITY: 0.15,
+    IDLE_DURATION: 0.5,
+    FRANTIC_DURATION: 0.3,
+
+    // Hover & zone tracking
+    HOVER: 0.05,
+    STROKE_ZONE_RADIUS: 0.15,
+
+    // Gesture classification
+    STROKE_MAX_VELOCITY: 0.15,
+    STROKE_MIN_CONSISTENCY: 0.7,
+    POKE_MIN_VELOCITY: 0.25,
+    ORBIT_MIN_ANGULAR: 1.5,
+    TREMBLE_MIN_VELOCITY: 0.18,
+    TREMBLE_MAX_CONSISTENCY: 0.35,
+
+    // Hold detection
+    HOLD_THRESHOLD: 0.5,
+    HOLD_MAX_DRIFT: 0.08,
+
+    // Tap detection
+    TAP_MAX_DURATION: 0.3,
+    TAP_MAX_VELOCITY: 0.1,
+
+    // Flick detection
+    FLICK_MIN_EXIT_VELOCITY: 0.3,
+
+    // Hesitation detection
+    HESITATION_APPROACH_SPEED: -0.15,
+    HESITATION_PAUSE_MIN: 0.3,
+    HESITATION_RETREAT_SPEED: 0.1,
+
+    // Spiral detection
+    SPIRAL_SHRINK_THRESHOLD: -0.08,
+    SPIRAL_MIN_ORBIT: 0.8
+}
+
 export class InputManager {
     constructor(domElement) {
         this.domElement = domElement
+        this.T = THRESHOLDS
 
-        // Normalized position (-1 to 1)
+        // Position tracking
         this.position = { x: 0, y: 0 }
         this.prevPosition = { x: 0, y: 0 }
 
@@ -27,122 +69,69 @@ export class InputManager {
         this.idleTime = 0
         this.franticTime = 0
 
-        // Thresholds
-        this.IDLE_VELOCITY = 0.01
-        this.FRANTIC_VELOCITY = 0.15
-        this.IDLE_DURATION = 0.5  // seconds to consider idle
-        this.FRANTIC_DURATION = 0.3  // seconds to consider frantic
-
         // Flags
         this.isActive = false
         this.isTouching = false
 
-        // ═══════════════════════════════════════════════════════════
-        // TOUCH PRESSURE & RADIUS (Mobile emotional intensity)
-        // ═══════════════════════════════════════════════════════════
-        this.touchRadius = 0       // Normalized contact area (0-1)
-        this.touchPressure = 0     // iOS Force Touch (0-1)
-        this.touchIntensity = 0    // Combined intensity modifier (0-1)
+        // Touch metrics
+        this.touchRadius = 0
+        this.touchPressure = 0
+        this.touchIntensity = 0
 
-        // ═══════════════════════════════════════════════════════════
-        // APPROACH SPEED & HOVER DURATION (Deep Interaction)
-        // ═══════════════════════════════════════════════════════════
-        this.approachSpeed = 0           // Rate of approach to center (negative = approaching)
-        this.prevDistFromCenter = 1.0    // Previous distance from screen center
-        this.hoverDuration = 0           // Time cursor has been relatively stationary
-        this.hoverPosition = { x: 0, y: 0 }  // Position when hover started
-        this.HOVER_THRESHOLD = 0.05      // Movement threshold to reset hover
+        // Approach & hover tracking
+        this.approachSpeed = 0
+        this.prevDistFromCenter = 1.0
+        this.hoverDuration = 0
+        this.hoverPosition = { x: 0, y: 0 }
 
-        // ═══════════════════════════════════════════════════════════
-        // STROKE ZONE TRACKING (for Warm Traces)
-        // ═══════════════════════════════════════════════════════════
-        this.strokeZoneDuration = 0           // Time stroke held in same area
-        this.strokeZonePosition = { x: 0, y: 0 }  // Position where zone began
-        this.strokeZoneRadius = 0.15          // Drift threshold before zone resets
+        // Stroke zone tracking
+        this.strokeZoneDuration = 0
+        this.strokeZonePosition = { x: 0, y: 0 }
 
-        // ═══════════════════════════════════════════════════════════
-        // GESTURE RECOGNITION
-        // ═══════════════════════════════════════════════════════════
-
-        // Direction history for consistency calculation
-        this.directionHistory = []  // {x, y}[] normalized direction vectors
-        this.directionHistoryLength = 15  // ~250ms at 60fps
-
-        // Smoothed direction vector
+        // Direction tracking
+        this.directionHistory = []
+        this.directionHistoryLength = 15
         this.smoothedDirection = { x: 0, y: 0 }
-
-        // Directional consistency: 0 = chaos, 1 = perfectly linear
         this.directionalConsistency = 0
 
-        // Angular velocity (radians per second, relative to screen center)
+        // Angular velocity
         this.angularVelocity = 0
-        this.prevAngle = 0  // Previous angle from center
+        this.prevAngle = 0
 
-        // Gesture classification
+        // Gesture state
         this.currentGesture = 'idle'
 
-        // Poke detection: track if we just had high velocity
+        // Poke detection
         this.recentHighVelocity = false
         this.highVelocityDecay = 0
-
-        // Just stopped detection (for poke)
         this.justStopped = false
         this.wasMoving = false
 
-        // Gesture thresholds (tunable via console)
-        this.STROKE_MAX_VELOCITY = 0.15
-        this.STROKE_MIN_CONSISTENCY = 0.7
-        this.POKE_MIN_VELOCITY = 0.25
-        this.ORBIT_MIN_ANGULAR = 1.5  // radians per second
-        this.TREMBLE_MIN_VELOCITY = 0.18
-        this.TREMBLE_MAX_CONSISTENCY = 0.35
+        // Hold detection
+        this.holdStartTime = 0
+        this.holdPosition = { x: 0, y: 0 }
+        this.isHolding = false
+        this.holdDuration = 0
 
-        // ═══════════════════════════════════════════════════════════
-        // HOLD DETECTION (for recognition / calming)
-        // Hold = patient presence, requires intention
-        // ═══════════════════════════════════════════════════════════
-        this.holdStartTime = 0              // When hold started (ms)
-        this.holdPosition = { x: 0, y: 0 }  // Where hold started
-        this.isHolding = false              // Currently holding?
-        this.holdDuration = 0               // How long held (seconds)
-        this.HOLD_THRESHOLD = 0.5           // Seconds to activate hold
-        this.HOLD_MAX_DRIFT = 0.08          // Max movement to keep hold valid
+        // Tap detection
+        this.contactStartTime = 0
+        this.justReleased = false
+        this.contactDuration = 0
 
-        // ═══════════════════════════════════════════════════════════
-        // TAP DETECTION (short contact, "я тут")
-        // ═══════════════════════════════════════════════════════════
-        this.contactStartTime = 0           // When touch/click started
-        this.justReleased = false           // True for 1 frame after release
-        this.contactDuration = 0            // Last contact duration (seconds)
-        this.TAP_MAX_DURATION = 0.3         // Max duration to count as tap
-        this.TAP_MAX_VELOCITY = 0.1         // Max velocity for tap (not a flick)
+        // Flick detection
+        this.exitVelocity = 0
+        this.justExited = false
 
-        // ═══════════════════════════════════════════════════════════
-        // FLICK DETECTION (fast exit)
-        // ═══════════════════════════════════════════════════════════
-        this.exitVelocity = 0               // Velocity when leaving bounds
-        this.justExited = false             // True for 1 frame after exit
-        this.FLICK_MIN_EXIT_VELOCITY = 0.3  // Min velocity for flick
+        // Hesitation state machine
+        this.hesitationPhase = 'none'
+        this.hesitationTimer = 0
+        this.hesitationCompleted = false
 
-        // ═══════════════════════════════════════════════════════════
-        // HESITATION DETECTION (approach → pause → retreat)
-        // ═══════════════════════════════════════════════════════════
-        this.hesitationPhase = 'none'       // 'approaching' | 'paused' | 'retreating' | 'none'
-        this.hesitationTimer = 0            // Time in current phase
-        this.hesitationCompleted = false    // True when full sequence detected
-        this.HESITATION_APPROACH_SPEED = -0.15  // Threshold for "approaching" (negative = toward center)
-        this.HESITATION_PAUSE_MIN = 0.3     // Min pause duration before retreat
-        this.HESITATION_RETREAT_SPEED = 0.1 // Threshold for "retreating"
-
-        // ═══════════════════════════════════════════════════════════
-        // SPIRAL DETECTION (orbit + shrinking radius)
-        // ═══════════════════════════════════════════════════════════
-        this.orbitRadius = 0                // Current distance from center
-        this.orbitRadiusPrev = 0            // Previous distance (for shrink detection)
-        this.orbitShrinkRate = 0            // Rate of radius change (negative = shrinking)
-        this.isSpiraling = false            // True when spiraling inward
-        this.SPIRAL_SHRINK_THRESHOLD = -0.08 // Threshold for "shrinking" per second
-        this.SPIRAL_MIN_ORBIT = 0.8         // Min angular velocity to be considered orbit
+        // Spiral detection
+        this.orbitRadius = 0
+        this.orbitRadiusPrev = 0
+        this.orbitShrinkRate = 0
+        this.isSpiraling = false
 
         this._bindEvents()
     }
@@ -310,10 +299,10 @@ export class InputManager {
         this.velocity = this.velocityHistory.reduce((a, b) => a + b, 0) / this.velocityHistory.length
 
         // Update idle/frantic timers
-        if (this.velocity < this.IDLE_VELOCITY) {
+        if (this.velocity < this.T.IDLE_VELOCITY) {
             this.idleTime += delta
             this.franticTime = 0
-        } else if (this.velocity > this.FRANTIC_VELOCITY) {
+        } else if (this.velocity > this.T.FRANTIC_VELOCITY) {
             this.franticTime += delta
             this.idleTime = 0
         } else {
@@ -348,12 +337,12 @@ export class InputManager {
         this._updateAngularVelocity(delta)
 
         // 4. Detect "just stopped" for poke detection
-        const isCurrentlyMoving = this.velocity > this.IDLE_VELOCITY
+        const isCurrentlyMoving = this.velocity > this.T.IDLE_VELOCITY
         this.justStopped = this.wasMoving && !isCurrentlyMoving
         this.wasMoving = isCurrentlyMoving
 
         // Track recent high velocity (for poke detection)
-        if (this.velocity > this.POKE_MIN_VELOCITY) {
+        if (this.velocity > this.T.POKE_MIN_VELOCITY) {
             this.recentHighVelocity = true
             this.highVelocityDecay = 0.15  // 150ms window
         }
@@ -392,7 +381,7 @@ export class InputManager {
             Math.pow(this.position.x - this.hoverPosition.x, 2) +
             Math.pow(this.position.y - this.hoverPosition.y, 2)
         )
-        if (hoverDist < this.HOVER_THRESHOLD) {
+        if (hoverDist < this.T.HOVER) {
             // Still hovering in same spot
             this.hoverDuration += delta
         } else {
@@ -410,7 +399,7 @@ export class InputManager {
                 Math.pow(this.position.x - this.strokeZonePosition.x, 2) +
                 Math.pow(this.position.y - this.strokeZonePosition.y, 2)
             )
-            if (zoneDist < this.strokeZoneRadius) {
+            if (zoneDist < this.T.STROKE_ZONE_RADIUS) {
                 // Still stroking in same zone
                 this.strokeZoneDuration += delta
             } else {
@@ -434,7 +423,7 @@ export class InputManager {
                 Math.pow(this.position.y - this.holdPosition.y, 2)
             )
 
-            if (holdDrift < this.HOLD_MAX_DRIFT) {
+            if (holdDrift < this.T.HOLD_MAX_DRIFT) {
                 // Still holding in place — accumulate duration
                 this.holdDuration = (performance.now() - this.holdStartTime) / 1000
             } else {
@@ -453,7 +442,7 @@ export class InputManager {
         switch (this.hesitationPhase) {
             case 'none':
                 // Looking for approach
-                if (this.approachSpeed < this.HESITATION_APPROACH_SPEED) {
+                if (this.approachSpeed < this.T.HESITATION_APPROACH_SPEED) {
                     this.hesitationPhase = 'approaching'
                     this.hesitationTimer = 0
                 }
@@ -461,13 +450,13 @@ export class InputManager {
             case 'approaching':
                 this.hesitationTimer += delta
                 // Still approaching? Continue
-                if (this.approachSpeed < this.HESITATION_APPROACH_SPEED * 0.5) {
+                if (this.approachSpeed < this.T.HESITATION_APPROACH_SPEED * 0.5) {
                     // Still approaching fast, keep in phase
                 } else if (Math.abs(this.approachSpeed) < 0.05) {
                     // Paused! Transition to paused phase
                     this.hesitationPhase = 'paused'
                     this.hesitationTimer = 0
-                } else if (this.approachSpeed > this.HESITATION_RETREAT_SPEED) {
+                } else if (this.approachSpeed > this.T.HESITATION_RETREAT_SPEED) {
                     // Retreated too fast without pause - reset
                     this.hesitationPhase = 'none'
                 } else if (this.hesitationTimer > 2.0) {
@@ -479,9 +468,9 @@ export class InputManager {
                 this.hesitationTimer += delta
                 if (Math.abs(this.approachSpeed) < 0.05) {
                     // Still paused
-                } else if (this.approachSpeed > this.HESITATION_RETREAT_SPEED) {
+                } else if (this.approachSpeed > this.T.HESITATION_RETREAT_SPEED) {
                     // Started retreating!
-                    if (this.hesitationTimer >= this.HESITATION_PAUSE_MIN) {
+                    if (this.hesitationTimer >= this.T.HESITATION_PAUSE_MIN) {
                         // Valid hesitation sequence complete!
                         this.hesitationCompleted = true
                         this.hesitationPhase = 'retreating'
@@ -490,7 +479,7 @@ export class InputManager {
                         // Pause too short - reset
                         this.hesitationPhase = 'none'
                     }
-                } else if (this.approachSpeed < this.HESITATION_APPROACH_SPEED) {
+                } else if (this.approachSpeed < this.T.HESITATION_APPROACH_SPEED) {
                     // Started approaching again - reset
                     this.hesitationPhase = 'approaching'
                     this.hesitationTimer = 0
@@ -524,8 +513,8 @@ export class InputManager {
             }
         }
         // Spiraling = orbiting + radius shrinking
-        const isOrbiting = Math.abs(this.angularVelocity) > this.SPIRAL_MIN_ORBIT
-        this.isSpiraling = isOrbiting && this.orbitShrinkRate < this.SPIRAL_SHRINK_THRESHOLD
+        const isOrbiting = Math.abs(this.angularVelocity) > this.T.SPIRAL_MIN_ORBIT
+        this.isSpiraling = isOrbiting && this.orbitShrinkRate < this.T.SPIRAL_SHRINK_THRESHOLD
 
         // ═══════════════════════════════════════════════════════════
         // RESET justReleased at end of frame (so it's true for 1 frame only)
@@ -605,18 +594,18 @@ export class InputManager {
         // Priority order matters!
 
         // 1. Idle - no movement
-        if (velocity < this.IDLE_VELOCITY) return 'idle'
+        if (velocity < this.T.IDLE_VELOCITY) return 'idle'
 
         // 2. Tap - short contact, low velocity on release
         // Must check before poke! Tap is gentle, poke is aggressive
         if (this.justReleased &&
-            this.contactDuration < this.TAP_MAX_DURATION &&
-            this.exitVelocity < this.TAP_MAX_VELOCITY) {
+            this.contactDuration < this.T.TAP_MAX_DURATION &&
+            this.exitVelocity < this.T.TAP_MAX_VELOCITY) {
             return 'tap'
         }
 
         // 3. Flick - fast exit from the sphere (like poke but exits screen)
-        if (this.justReleased && this.exitVelocity >= this.FLICK_MIN_EXIT_VELOCITY) {
+        if (this.justReleased && this.exitVelocity >= this.T.FLICK_MIN_EXIT_VELOCITY) {
             return 'flick'
         }
 
@@ -632,13 +621,13 @@ export class InputManager {
         }
 
         // 7. Orbit - consistent circular motion
-        if (Math.abs(angularVelocity) > this.ORBIT_MIN_ANGULAR && velocity > 0.05) return 'orbit'
+        if (Math.abs(angularVelocity) > this.T.ORBIT_MIN_ANGULAR && velocity > 0.05) return 'orbit'
 
         // 8. Tremble - fast and chaotic
-        if (velocity > this.TREMBLE_MIN_VELOCITY && directionalConsistency < this.TREMBLE_MAX_CONSISTENCY) return 'tremble'
+        if (velocity > this.T.TREMBLE_MIN_VELOCITY && directionalConsistency < this.T.TREMBLE_MAX_CONSISTENCY) return 'tremble'
 
         // 9. Stroke - slow and linear (petting)
-        if (velocity < this.STROKE_MAX_VELOCITY && directionalConsistency > this.STROKE_MIN_CONSISTENCY) return 'stroke'
+        if (velocity < this.T.STROKE_MAX_VELOCITY && directionalConsistency > this.T.STROKE_MIN_CONSISTENCY) return 'stroke'
 
         // 10. Default - general movement
         return 'moving'
@@ -656,8 +645,8 @@ export class InputManager {
             franticTime: this.franticTime,
 
             // Boolean flags
-            isIdle: this.idleTime > this.IDLE_DURATION,
-            isFrantic: this.franticTime > this.FRANTIC_DURATION,
+            isIdle: this.idleTime > this.T.IDLE_DURATION,
+            isFrantic: this.franticTime > this.T.FRANTIC_DURATION,
             isActive: this.isActive,
             justStopped: this.justStopped,
             isTouching: this.isTouching,
