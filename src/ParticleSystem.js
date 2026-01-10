@@ -157,6 +157,11 @@ export class ParticleSystem {
         uniform float uPulse;
         // Osmosis (Hold gesture)
         uniform float uOsmosisDepth;
+        // Organic Ticks (autonomous micro-movements)
+        uniform vec3 uTickZone;
+        uniform float uTickRadius;
+        uniform float uTickIntensity;
+        uniform float uTickType;  // 0=none, 1=twitch, 2=stretch, 3=shiver
         
         varying float vType;
         varying float vSeed;
@@ -308,6 +313,29 @@ export class ParticleSystem {
             // Final ripple displacement: outward bump
             float rippleDisp = ringInfluence * decay * 0.12;
             pos += dir * rippleDisp;
+          }
+          
+          // ═══════════════════════════════════════════════════════════
+          // ORGANIC TICK EFFECT (autonomous micro-movements)
+          // "She twitches, stretches, shivers — alive even when unwatched"
+          // ═══════════════════════════════════════════════════════════
+          if (uTickIntensity > 0.0 && aType < 1.5) {
+            vec3 dir = normalize(aOriginalPos);
+            float tickDist = distance(aOriginalPos, uTickZone);
+            float tickInfluence = (1.0 - smoothstep(0.0, uTickRadius, tickDist)) * uTickIntensity;
+            
+            if (uTickType > 0.5 && uTickType < 1.5) {
+              // TWITCH: Quick outward bump in localized zone
+              pos += dir * tickInfluence * 0.08;
+            } else if (uTickType > 1.5 && uTickType < 2.5) {
+              // STRETCH: Directional pull toward tick zone
+              vec3 stretchDir = normalize(uTickZone);
+              pos += stretchDir * tickInfluence * 0.05;
+            } else if (uTickType > 2.5) {
+              // SHIVER: Noise-based displacement across whole surface
+              float shiverNoise = snoise(aOriginalPos * 15.0 + uTime * 5.0);
+              pos += dir * shiverNoise * uTickIntensity * 0.03;
+            }
           }
           
           // Evaporation: radial drift outward during fade-out
@@ -675,7 +703,12 @@ export class ParticleSystem {
         uTouchGlowPos: { value: new THREE.Vector3(0, 0, 10) },
         uTouchGlowIntensity: { value: 0.0 },
         uPulse: { value: 0.0 },
-        uOsmosisDepth: { value: 0.0 }
+        uOsmosisDepth: { value: 0.0 },
+        // Organic Ticks
+        uTickZone: { value: new THREE.Vector3(0, 0, 0) },
+        uTickRadius: { value: 0.0 },
+        uTickIntensity: { value: 0.0 },
+        uTickType: { value: 0 }
       },
       vertexShader: this._generateVertexShader(),
       fragmentShader: this._generateFragmentShader(),

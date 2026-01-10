@@ -14,6 +14,7 @@ import { SonicOrganism } from './SonicOrganism.js'
 import { Eye } from './Eye.js'
 import { MemoryManager } from './MemoryManager.js'
 import { HapticManager } from './HapticManager.js'
+import { OrganicTicks } from './OrganicTicks.js'
 
 /**
  * Main application entry point
@@ -155,6 +156,13 @@ class App {
         // Initialize haptic feedback (Vibration API)
         this.hapticManager = new HapticManager()
         this.sphere.setHapticManager(this.hapticManager)
+
+        // Initialize organic ticks (autonomous micro-movements)
+        this.organicTicks = new OrganicTicks(this.sphere, this.particleSystem, this.eye)
+        this.organicTicks.setInputManager(this.inputManager)
+
+        // Start haptic heartbeat (continuous pulse tied to emotional state)
+        this.hapticManager.startHeartbeat('peace')
     }
 
     _onResize() {
@@ -199,6 +207,22 @@ class App {
             // Sync eye rotation with sphere rolling
             this.eye.setSphereRotation(this.particleSystem.mesh.rotation)
             this.eye.update(delta, elapsed)
+
+            // ═══════════════════════════════════════════════════════════
+            // ORGANIC TICKS: Autonomous micro-movements when idle
+            // "She twitches, stretches, shivers — alive even when unwatched"
+            // ═══════════════════════════════════════════════════════════
+            if (this.organicTicks) {
+                this.organicTicks.update(delta, elapsed)
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            // HAPTIC HEARTBEAT: Continuous pulse synchronized with sphere
+            // "You feel her pulse through the screen"
+            // ═══════════════════════════════════════════════════════════
+            if (this.hapticManager) {
+                this.hapticManager.update(delta, elapsed)
+            }
 
             // Collect traces once per frame (used by both SonicOrganism and ParticleSystem)
             const ghostTraces = this.memoryManager.getActiveGhostTraces()

@@ -719,6 +719,16 @@ export class Sphere {
                 this.particles.stopBleeding()
                 break
         }
+
+        // Sync haptic heartbeat with emotional phase
+        if (this.haptic && typeof this.haptic.setPhase === 'function') {
+            this.haptic.setPhase(newPhase)
+        }
+
+        // Sync eye emotional state with phase
+        if (this.eye) {
+            this.eye.setEmotionalPhase(newPhase)
+        }
     }
 
     _applyEffects(delta, inputState) {

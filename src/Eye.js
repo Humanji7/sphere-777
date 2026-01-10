@@ -42,6 +42,13 @@ export class Eye {
     this.gazeLocked = false
     this.lockedGazeTarget = null
 
+    // Autonomous glance (for organic ticks)
+    this.glancing = false
+    this.glanceTarget = new THREE.Vector2()
+    this.glanceReturnTarget = new THREE.Vector2()
+    this.glanceTimer = 0
+    this.glanceDuration = 0.4
+
     // Emotional states
     this.tension = 0
     this.isSleeping = false
@@ -717,6 +724,33 @@ export class Eye {
   }
 
   /**
+   * Glance at a random direction then return (for organic ticks)
+   * Creates brief "looking around" effect
+   * @param {THREE.Vector2} direction - Approximate gaze direction {x, y} in -1 to 1 range
+   * @param {number} duration - How long to hold the glance before returning
+   */
+  glanceAt(direction, duration = 0.4) {
+    // Don't interrupt locked gaze or current glance
+    if (this.gazeLocked || this.glancing) return
+
+    this.glancing = true
+    this.glanceDuration = duration
+    this.glanceTimer = 0
+
+    // Save current target to return to
+    this.glanceReturnTarget.copy(this.targetGaze)
+
+    // Set glance target with some randomization
+    this.glanceTarget.x = direction.x + (Math.random() - 0.5) * 0.3
+    this.glanceTarget.y = direction.y + (Math.random() - 0.5) * 0.3
+    this.glanceTarget.x = THREE.MathUtils.clamp(this.glanceTarget.x, -1, 1)
+    this.glanceTarget.y = THREE.MathUtils.clamp(this.glanceTarget.y, -1, 1)
+
+    // Immediately set target to glance direction
+    this.targetGaze.copy(this.glanceTarget)
+  }
+
+  /**
    * Lock gaze on a specific point (for RECOGNITION phase)
    * Eye stops normal tracking and stares at this point
    * @param {THREE.Vector3} worldPos - position to lock gaze on
@@ -847,7 +881,19 @@ export class Eye {
       this.lookAt(this.lockedGazeTarget)
     }
 
-    const gazeSpeed = this.gazeLocked ? 3.0 : (5.0 - this.tension * 2.0)
+    // ═══════════════════════════════════════════════════════════
+    // GLANCE ANIMATION (for organic ticks)
+    // ═══════════════════════════════════════════════════════════
+    if (this.glancing) {
+      this.glanceTimer += delta
+      if (this.glanceTimer >= this.glanceDuration) {
+        // Glance complete - return to original gaze
+        this.glancing = false
+        this.targetGaze.copy(this.glanceReturnTarget)
+      }
+    }
+
+    const gazeSpeed = this.gazeLocked ? 3.0 : (this.glancing ? 8.0 : (5.0 - this.tension * 2.0))
     this.gazeOffset.x = THREE.MathUtils.lerp(this.gazeOffset.x, this.targetGaze.x, delta * gazeSpeed)
     this.gazeOffset.y = THREE.MathUtils.lerp(this.gazeOffset.y, this.targetGaze.y, delta * gazeSpeed)
     this.material.uniforms.uGazeOffset.value.copy(this.gazeOffset)
