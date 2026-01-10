@@ -158,15 +158,15 @@ export class LivingCore {
         this.baseRadius = baseRadius
         this.group = new THREE.Group()
 
-        // v2: Two close layers, warm unified palette
+        // v2: Two close layers, bioluminescence palette (cold base)
         this.layers = {
             inner: {
                 r: 0.75,
                 baseFreq: 0.10,
                 freq: 0.10,
                 phase: 0,
-                // Warm amber core
-                color: new THREE.Color(0xFFAA66),
+                // Cool moonlit core (peace state)
+                color: new THREE.Color(0x8899AA),
                 intensity: 0.5,
                 noiseScale: 2.5,
                 noiseSpeed: 0.25
@@ -176,31 +176,31 @@ export class LivingCore {
                 baseFreq: 0.55,
                 freq: 0.55,
                 phase: 0,
-                // Slightly lighter warm
-                color: new THREE.Color(0xFFCC88),
+                // Cool pale
+                color: new THREE.Color(0x99AABB),
                 intensity: 0.4,
                 noiseScale: 3.0,
                 noiseSpeed: 0.4
             }
         }
 
-        // Phase-based color shifts
+        // Phase-based color shifts (Bioluminescence: cold base, warm emotions)
         this.phaseColors = {
             peace: {
-                inner: new THREE.Color(0xFFAA66),  // Warm amber
-                pulse: new THREE.Color(0xFFCC88)   // Light amber
+                inner: new THREE.Color(0x8899AA),  // Cool gray-blue (moonlit)
+                pulse: new THREE.Color(0x99AABB)   // Cool pale
             },
             alert: {
-                inner: new THREE.Color(0xFF8844),  // Brighter orange
-                pulse: new THREE.Color(0xFFAA55)
+                inner: new THREE.Color(0xBB8866),  // Warm brown (warmth emerging)
+                pulse: new THREE.Color(0xCC9977)
             },
             trust: {
-                inner: new THREE.Color(0xFFDD99),  // Soft gold
-                pulse: new THREE.Color(0xFFEEBB)   // Pale gold
+                inner: new THREE.Color(0xDDCC99),  // Warm gold (trust = warmth)
+                pulse: new THREE.Color(0xEEDDBB)   // Pale gold
             },
             bleeding: {
-                inner: new THREE.Color(0xFF6633),  // Deep orange-red
-                pulse: new THREE.Color(0xFF8855)   // Intense orange
+                inner: new THREE.Color(0xFF6644),  // Red-orange breaks through cold
+                pulse: new THREE.Color(0xFF8866)   // Intense
             }
         }
 
