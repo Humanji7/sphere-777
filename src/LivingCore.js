@@ -1,24 +1,25 @@
 import * as THREE from 'three'
 
 /**
- * LivingCore - Three concentric glow layers creating the sphere's "inner organs"
+ * LivingCore - Two close concentric glow layers creating the sphere's "inner warmth"
  * 
- * Architecture:
+ * Architecture (v2 - Harmonious):
  * ┌─────────────────────────────────────────┐
  * │           Particles (surface)           │  r=1.5
  * │   ┌─────────────────────────────────┐   │
- * │   │      OuterGlow (r=1.15)         │   │  0.25 Hz
+ * │   │      PulseLayer (r=0.85)        │   │  0.55 Hz (heartbeat)
  * │   │   ┌─────────────────────────┐   │   │
- * │   │   │    PulseLayer (r=0.85)  │   │   │  0.6 Hz (heartbeat)
- * │   │   │   ┌─────────────────┐   │   │   │
- * │   │   │   │ InnerCore (r=0.5)│   │   │   │  0.08 Hz (slow)
- * │   │   │   └─────────────────┘   │   │   │
+ * │   │   │    InnerCore (r=0.75)   │   │   │  0.10 Hz (slow breath)
  * │   │   └─────────────────────────┘   │   │
  * │   └─────────────────────────────────┘   │
  * └─────────────────────────────────────────┘
+ * 
+ * Design principles:
+ * - Close radii (0.75, 0.85) = unified organic mass, not "onion layers"
+ * - Warm unified palette = harmonious, not jarring
+ * - Subtle alpha blending = layers merge softly
  */
 
-// Simplex 3D noise GLSL (inline for shaders)
 const SIMPLEX_NOISE_GLSL = /* glsl */`
 vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
 vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -86,7 +87,6 @@ float snoise(vec3 v) {
 }
 `
 
-// Vertex shader for all layers
 const vertexShader = /* glsl */`
 ${SIMPLEX_NOISE_GLSL}
 
@@ -107,9 +107,9 @@ void main() {
     vec3 noisePos = position * uNoiseScale + uTime * uNoiseSpeed;
     float noise = snoise(noisePos);
     
-    // Pulse displacement
+    // Pulse displacement - subtle
     float pulse = sin(uPhase * 6.28318) * 0.5 + 0.5;
-    float displacement = noise * 0.08 + pulse * 0.05;
+    float displacement = noise * 0.06 + pulse * 0.03;
     vDisplacement = displacement;
     
     vec3 displaced = position + normal * displacement;
@@ -117,48 +117,37 @@ void main() {
 }
 `
 
-// Fragment shader (with vein support for outer layer)
 const fragmentShader = /* glsl */`
-${SIMPLEX_NOISE_GLSL}
-
 uniform vec3 uBaseColor;
 uniform float uIntensity;
 uniform float uPhase;
 uniform float uTime;
 uniform vec3 uTouchPos;
 uniform float uTouchIntensity;
-uniform float uVeinIntensity;
 
 varying vec3 vNormal;
 varying vec3 vPosition;
 varying float vDisplacement;
 
 void main() {
-    float glow = sin(uPhase * 6.28318) * 0.3 + 0.7;
+    float glow = sin(uPhase * 6.28318) * 0.2 + 0.8;
     
-    // Edge fade
-    float edgeFade = 1.0 - pow(abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 0.5);
+    // Softer edge fade for organic look
+    float edgeFade = 1.0 - pow(abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 0.7);
     
-    // Displacement brightness
-    float dispBright = 1.0 + vDisplacement * 2.0;
+    // Subtle displacement brightness
+    float dispBright = 1.0 + vDisplacement * 1.5;
     
-    // Touch glow
+    // Touch glow - warm response
     float touchDist = distance(vPosition, uTouchPos);
-    float touchGlow = (1.0 - smoothstep(0.0, 1.5, touchDist)) * uTouchIntensity;
-    
-    // Organic veins via noise (only outer layer uses this)
-    float veins = 0.0;
-    if (uVeinIntensity > 0.0) {
-        float veinNoise = snoise(vPosition * 8.0 + uTime * 0.1);
-        veins = smoothstep(0.6, 0.8, abs(veinNoise)) * uVeinIntensity;
-    }
+    float touchGlow = (1.0 - smoothstep(0.0, 1.2, touchDist)) * uTouchIntensity;
     
     vec3 color = uBaseColor * glow * dispBright * uIntensity;
-    color += vec3(1.0, 0.9, 0.7) * touchGlow * 0.5;
-    color += vec3(1.0, 0.8, 0.6) * veins;
+    color += vec3(1.0, 0.95, 0.85) * touchGlow * 0.4;
     
-    float alpha = (glow * 0.4 + touchGlow * 0.3 + veins * 0.2) * edgeFade;
-    alpha = clamp(alpha, 0.0, 0.8);
+    // Subtle alpha - layers blend softly
+    float alpha = (glow * 0.3 + touchGlow * 0.25) * edgeFade;
+    alpha = clamp(alpha, 0.0, 0.6);
     
     gl_FragColor = vec4(color, alpha);
 }
@@ -169,48 +158,58 @@ export class LivingCore {
         this.baseRadius = baseRadius
         this.group = new THREE.Group()
 
-        // Layer configs: radius relative to baseRadius, frequency, color, intensity
+        // v2: Two close layers, warm unified palette
         this.layers = {
             inner: {
-                r: 0.50,
-                baseFreq: 0.08,
-                freq: 0.08,
+                r: 0.75,
+                baseFreq: 0.10,
+                freq: 0.10,
                 phase: 0,
-                color: new THREE.Color(0x4466AA),
-                intensity: 0.7,
-                noiseScale: 2.0,
-                noiseSpeed: 0.3
+                // Warm amber core
+                color: new THREE.Color(0xFFAA66),
+                intensity: 0.5,
+                noiseScale: 2.5,
+                noiseSpeed: 0.25
             },
             pulse: {
                 r: 0.85,
-                baseFreq: 0.60,
-                freq: 0.60,
+                baseFreq: 0.55,
+                freq: 0.55,
                 phase: 0,
-                color: new THREE.Color(0xFF6644),
-                intensity: 0.5,
-                noiseScale: 3.0,
-                noiseSpeed: 0.5
-            },
-            outer: {
-                r: 1.15,
-                baseFreq: 0.25,
-                freq: 0.25,
-                phase: 0,
-                color: new THREE.Color(0x88AAFF),
+                // Slightly lighter warm
+                color: new THREE.Color(0xFFCC88),
                 intensity: 0.4,
-                breathSync: 0.3,
-                noiseScale: 1.5,
-                noiseSpeed: 0.2,
-                veinIntensity: 0.3
+                noiseScale: 3.0,
+                noiseSpeed: 0.4
+            }
+        }
+
+        // Phase-based color shifts
+        this.phaseColors = {
+            peace: {
+                inner: new THREE.Color(0xFFAA66),  // Warm amber
+                pulse: new THREE.Color(0xFFCC88)   // Light amber
+            },
+            alert: {
+                inner: new THREE.Color(0xFF8844),  // Brighter orange
+                pulse: new THREE.Color(0xFFAA55)
+            },
+            trust: {
+                inner: new THREE.Color(0xFFDD99),  // Soft gold
+                pulse: new THREE.Color(0xFFEEBB)   // Pale gold
+            },
+            bleeding: {
+                inner: new THREE.Color(0xFF6633),  // Deep orange-red
+                pulse: new THREE.Color(0xFF8855)   // Intense orange
             }
         }
 
         // Phase-based intensity modifiers
         this.phaseModifiers = {
-            peace: { inner: 1.0, pulse: 0.8, outer: 1.0 },
-            alert: { inner: 1.2, pulse: 1.2, outer: 0.9 },
-            trust: { inner: 1.5, pulse: 0.6, outer: 1.2 },
-            bleeding: { inner: 0.7, pulse: 1.8, outer: 0.5 }
+            peace: { inner: 1.0, pulse: 0.9 },
+            alert: { inner: 1.3, pulse: 1.2 },
+            trust: { inner: 1.2, pulse: 0.8 },
+            bleeding: { inner: 0.8, pulse: 1.6 }
         }
 
         this._createLayers()
@@ -232,11 +231,10 @@ export class LivingCore {
                     uPhase: { value: 0 },
                     uNoiseScale: { value: cfg.noiseScale },
                     uNoiseSpeed: { value: cfg.noiseSpeed },
-                    uBaseColor: { value: cfg.color },
+                    uBaseColor: { value: cfg.color.clone() },
                     uIntensity: { value: cfg.intensity },
                     uTouchPos: { value: new THREE.Vector3() },
-                    uTouchIntensity: { value: 0 },
-                    uVeinIntensity: { value: cfg.veinIntensity || 0 }
+                    uTouchIntensity: { value: 0 }
                 },
                 side: THREE.DoubleSide,
                 blending: THREE.AdditiveBlending,
@@ -270,6 +268,7 @@ export class LivingCore {
         }
 
         const phaseMod = this.phaseModifiers[phase] || this.phaseModifiers.peace
+        const phaseCol = this.phaseColors[phase] || this.phaseColors.peace
 
         for (const mesh of this.group.children) {
             const cfg = this.layers[mesh.name]
@@ -277,22 +276,23 @@ export class LivingCore {
 
             // Auto-restore rhythms: lerp back to baseFreq
             const targetFreq = mesh.name === 'pulse' && phase === 'bleeding'
-                ? 1.2
+                ? 1.2  // Faster pulse during bleeding
                 : cfg.baseFreq
             cfg.freq = THREE.MathUtils.lerp(cfg.freq, targetFreq, delta * 2.0)
 
             // Advance phase
             cfg.phase += delta * cfg.freq
 
-            // Outer layer syncs with breathing
-            if (mesh.name === 'outer' && cfg.breathSync) {
-                cfg.phase += breathPhase * cfg.breathSync * delta
-            }
-
             // Update uniforms
             u.uTime.value = elapsed
             u.uPhase.value = cfg.phase
             u.uIntensity.value = cfg.intensity * (phaseMod[mesh.name] || 1.0)
+
+            // Smoothly lerp to phase color
+            const targetColor = phaseCol[mesh.name]
+            if (targetColor) {
+                u.uBaseColor.value.lerp(targetColor, delta * 2.0)
+            }
 
             // Touch glow
             if (touchInfo) {
@@ -316,7 +316,7 @@ export class LivingCore {
     }
 
     /**
-     * Called during osmosis hold - synchronizes all layers
+     * Called during osmosis hold - synchronizes layers
      * @param {number} depth - Osmosis depth (0-1)
      */
     onOsmosis(depth) {
