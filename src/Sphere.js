@@ -308,6 +308,9 @@ export class Sphere {
         // Update Inner Glow (Bioluminescence)
         this._updateInnerGlow(delta)
 
+        // Update Sensitivity Zones drift
+        this.particles.updateSensitivityDrift(delta)
+
         // Apply effects to particle system
         this._applyEffects(delta, inputState)
 

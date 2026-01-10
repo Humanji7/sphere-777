@@ -55,6 +55,11 @@ export class ParticleSystem {
     this.evapFadeInDuration = 0.6    // 600ms fade in
     this.evapTotalDuration = this.evapFadeOutDuration + this.evapFadeInDuration
 
+    // Sensitivity Zones config
+    this.sensitivityDriftOffset = new THREE.Vector3(0, 0, 0)
+    this.sensitivityDriftSpeed = 0.03  // units/sec for zone drift
+    this.sensitivityValues = null      // Will hold Float32Array after geometry creation
+
     this._createGeometry()
     this._createMaterial()
     this._createMesh()
@@ -108,6 +113,143 @@ export class ParticleSystem {
     this.geometry.setAttribute('aType', new THREE.BufferAttribute(this.types, 1))
     this.geometry.setAttribute('aSeed', new THREE.BufferAttribute(this.seeds, 1))
     this.geometry.setAttribute('aBleedPhase', new THREE.BufferAttribute(this.bleedingPhases, 1))
+
+    // Create sensitivity map for organic zones
+    this._createSensitivityMap()
+  }
+
+  /**
+   * Create sensitivity map using 3D simplex noise
+   * Generates 5-8 organic zones with varying sensitivity (0.4-1.6 range)
+   * "Living skin — some parts softer, some rougher"
+   */
+  _createSensitivityMap() {
+    const sensitivity = new Float32Array(this.count)
+    const noiseScale = 3.0  // Controls number of zones (5-8 visible poles)
+
+    for (let i = 0; i < this.count; i++) {
+      const i3 = i * 3
+      const x = this.originalPositions[i3] / this.baseRadius
+      const y = this.originalPositions[i3 + 1] / this.baseRadius
+      const z = this.originalPositions[i3 + 2] / this.baseRadius
+
+      // 3 octaves of noise for organic feel
+      const noise1 = this._simplex3D(x * noiseScale, y * noiseScale, z * noiseScale)
+      const noise2 = this._simplex3D(x * noiseScale * 2.1, y * noiseScale * 2.1, z * noiseScale * 2.1) * 0.5
+      const noise3 = this._simplex3D(x * noiseScale * 4.3, y * noiseScale * 4.3, z * noiseScale * 4.3) * 0.25
+
+      // Combined noise → range 0.4-1.6
+      const combinedNoise = (noise1 + noise2 + noise3) / 1.75  // -1 to 1
+      sensitivity[i] = 1.0 + combinedNoise * 0.6  // 0.4 to 1.6
+    }
+
+    this.sensitivityValues = sensitivity
+    this.geometry.setAttribute('aSensitivity', new THREE.BufferAttribute(sensitivity, 1))
+  }
+
+  /**
+   * Simplex 3D noise implementation (CPU version)
+   * Based on Stefan Gustavson's algorithm
+   * @returns {number} -1 to 1
+   */
+  _simplex3D(x, y, z) {
+    // Permutation table (Perlin's original 256-value table, duplicated)
+    const perm = [
+      151, 160, 137, 91, 90, 15, 131, 13, 201, 95, 96, 53, 194, 233, 7, 225, 140, 36, 103, 30, 69, 142,
+      8, 99, 37, 240, 21, 10, 23, 190, 6, 148, 247, 120, 234, 75, 0, 26, 197, 62, 94, 252, 219, 203, 117,
+      35, 11, 32, 57, 177, 33, 88, 237, 149, 56, 87, 174, 20, 125, 136, 171, 168, 68, 175, 74, 165, 71,
+      134, 139, 48, 27, 166, 77, 146, 158, 231, 83, 111, 229, 122, 60, 211, 133, 230, 220, 105, 92, 41,
+      55, 46, 245, 40, 244, 102, 143, 54, 65, 25, 63, 161, 1, 216, 80, 73, 209, 76, 132, 187, 208, 89,
+      18, 169, 200, 196, 135, 130, 116, 188, 159, 86, 164, 100, 109, 198, 173, 186, 3, 64, 52, 217, 226,
+      250, 124, 123, 5, 202, 38, 147, 118, 126, 255, 82, 85, 212, 207, 206, 59, 227, 47, 16, 58, 17, 182,
+      189, 28, 42, 223, 183, 170, 213, 119, 248, 152, 2, 44, 154, 163, 70, 221, 153, 101, 155, 167, 43,
+      172, 9, 129, 22, 39, 253, 19, 98, 108, 110, 79, 113, 224, 232, 178, 185, 112, 104, 218, 246, 97,
+      228, 251, 34, 242, 193, 238, 210, 144, 12, 191, 179, 162, 241, 81, 51, 145, 235, 249, 14, 239,
+      107, 49, 192, 214, 31, 181, 199, 106, 157, 184, 84, 204, 176, 115, 121, 50, 45, 127, 4, 150, 254,
+      138, 236, 205, 93, 222, 114, 67, 29, 24, 72, 243, 141, 128, 195, 78, 66, 215, 61, 156, 180
+    ]
+    // Duplicate for wraparound
+    const p = new Uint8Array(512)
+    for (let i = 0; i < 256; i++) {
+      p[i] = perm[i]
+      p[256 + i] = perm[i]
+    }
+
+    // Gradients for 3D (12 gradient directions)
+    const grad3 = [
+      [1, 1, 0], [-1, 1, 0], [1, -1, 0], [-1, -1, 0],
+      [1, 0, 1], [-1, 0, 1], [1, 0, -1], [-1, 0, -1],
+      [0, 1, 1], [0, -1, 1], [0, 1, -1], [0, -1, -1]
+    ]
+
+    const dot3 = (g, x, y, z) => g[0] * x + g[1] * y + g[2] * z
+
+    // Skewing factors for 3D
+    const F3 = 1.0 / 3.0
+    const G3 = 1.0 / 6.0
+
+    // Skew input space
+    const s = (x + y + z) * F3
+    const i = Math.floor(x + s)
+    const j = Math.floor(y + s)
+    const k = Math.floor(z + s)
+
+    const t = (i + j + k) * G3
+    const X0 = i - t
+    const Y0 = j - t
+    const Z0 = k - t
+    const x0 = x - X0
+    const y0 = y - Y0
+    const z0 = z - Z0
+
+    // Determine simplex
+    let i1, j1, k1, i2, j2, k2
+    if (x0 >= y0) {
+      if (y0 >= z0) { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 1; k2 = 0 }
+      else if (x0 >= z0) { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 0; k2 = 1 }
+      else { i1 = 0; j1 = 0; k1 = 1; i2 = 1; j2 = 0; k2 = 1 }
+    } else {
+      if (y0 < z0) { i1 = 0; j1 = 0; k1 = 1; i2 = 0; j2 = 1; k2 = 1 }
+      else if (x0 < z0) { i1 = 0; j1 = 1; k1 = 0; i2 = 0; j2 = 1; k2 = 1 }
+      else { i1 = 0; j1 = 1; k1 = 0; i2 = 1; j2 = 1; k2 = 0 }
+    }
+
+    const x1 = x0 - i1 + G3
+    const y1 = y0 - j1 + G3
+    const z1 = z0 - k1 + G3
+    const x2 = x0 - i2 + 2.0 * G3
+    const y2 = y0 - j2 + 2.0 * G3
+    const z2 = z0 - k2 + 2.0 * G3
+    const x3 = x0 - 1.0 + 3.0 * G3
+    const y3 = y0 - 1.0 + 3.0 * G3
+    const z3 = z0 - 1.0 + 3.0 * G3
+
+    const ii = i & 255
+    const jj = j & 255
+    const kk = k & 255
+    const gi0 = p[ii + p[jj + p[kk]]] % 12
+    const gi1 = p[ii + i1 + p[jj + j1 + p[kk + k1]]] % 12
+    const gi2 = p[ii + i2 + p[jj + j2 + p[kk + k2]]] % 12
+    const gi3 = p[ii + 1 + p[jj + 1 + p[kk + 1]]] % 12
+
+    let n0, n1, n2, n3
+    let t0 = 0.6 - x0 * x0 - y0 * y0 - z0 * z0
+    if (t0 < 0) n0 = 0.0
+    else { t0 *= t0; n0 = t0 * t0 * dot3(grad3[gi0], x0, y0, z0) }
+
+    let t1 = 0.6 - x1 * x1 - y1 * y1 - z1 * z1
+    if (t1 < 0) n1 = 0.0
+    else { t1 *= t1; n1 = t1 * t1 * dot3(grad3[gi1], x1, y1, z1) }
+
+    let t2 = 0.6 - x2 * x2 - y2 * y2 - z2 * z2
+    if (t2 < 0) n2 = 0.0
+    else { t2 *= t2; n2 = t2 * t2 * dot3(grad3[gi2], x2, y2, z2) }
+
+    let t3 = 0.6 - x3 * x3 - y3 * y3 - z3 * z3
+    if (t3 < 0) n3 = 0.0
+    else { t3 *= t3; n3 = t3 * t3 * dot3(grad3[gi3], x3, y3, z3) }
+
+    return 32.0 * (n0 + n1 + n2 + n3)
   }
 
   _generateVertexShader() {
@@ -116,6 +258,7 @@ export class ParticleSystem {
         attribute float aSeed;
         attribute vec3 aOriginalPos;
         attribute float aBleedPhase;
+        attribute float aSensitivity;  // 0.4-1.6, sensitivity per particle
         
         uniform float uTime;
         uniform float uBreathPhase;
@@ -162,6 +305,9 @@ export class ParticleSystem {
         uniform float uTickRadius;
         uniform float uTickIntensity;
         uniform float uTickType;  // 0=none, 1=twitch, 2=stretch, 3=shiver
+        // Sensitivity Zones
+        uniform vec3 uSensitivityDrift;
+        uniform float uSensitivityContrast;
         
         varying float vType;
         varying float vSeed;
@@ -173,6 +319,7 @@ export class ParticleSystem {
         varying float vWarmInfluence;    // 0-1, proximity to warm traces
         varying float vTouchGlow;        // 0-1, glow for RECOGNITION phase
         varying float vDistanceToCenter; // For inner glow calculation
+        varying float vSensitivity;      // For fragment shader warmth
         
         // ========== Simplex 3D Noise ==========
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -246,6 +393,21 @@ export class ParticleSystem {
           vSeed = aSeed;
           vBleedPhase = aBleedPhase;
           
+          // ═══════════════════════════════════════════════════════════
+          // SENSITIVITY ZONES: Calculate adjusted sensitivity with drift
+          // "Living skin — some parts softer, some rougher"
+          // ═══════════════════════════════════════════════════════════
+          float baseSensitivity = aSensitivity;
+          // Apply drift: shift noise sampling position over time
+          vec3 driftedPos = aOriginalPos + uSensitivityDrift * 10.0;
+          float driftNoise = snoise(driftedPos * 3.0) * 0.15;  // Small variation from drift
+          float adjustedSensitivity = baseSensitivity + driftNoise;
+          // Apply contrast: enhance difference between soft and hard zones
+          adjustedSensitivity = 1.0 + (adjustedSensitivity - 1.0) * uSensitivityContrast;
+          // Clamp to valid range
+          adjustedSensitivity = clamp(adjustedSensitivity, 0.3, 1.8);
+          vSensitivity = adjustedSensitivity;
+          
           vec3 pos = position;
           
           // Combined Breathing, Boiling, and Heartbeat
@@ -268,7 +430,9 @@ export class ParticleSystem {
             float heartbeat = sin(uTime * 8.4) * 0.0035;
             
             vec3 dir = normalize(aOriginalPos);
-            pos += dir * (unifiedOffset + boilOffset + heartbeat);
+            // SENSITIVITY ZONES: Scale displacement by adjusted sensitivity
+            float totalBreathDisp = (unifiedOffset + boilOffset + heartbeat) * adjustedSensitivity;
+            pos += dir * totalBreathDisp;
           }
           
           // Pass unified curve to fragment shader for aura effect
@@ -290,7 +454,8 @@ export class ParticleSystem {
             float goosebumps = snoise(aOriginalPos * 8.0 + uTime * 0.5);
             
             // Combine: base always present + goosebumps scaled by intensity
-            float finalNoise = baseNoise * uNoiseAmount + goosebumps * uGoosebumpsIntensity;
+            // SENSITIVITY ZONES: Scale by adjusted sensitivity
+            float finalNoise = (baseNoise * uNoiseAmount + goosebumps * uGoosebumpsIntensity) * adjustedSensitivity;
             pos += dir * finalNoise;
           }
           
@@ -315,7 +480,8 @@ export class ParticleSystem {
             float decay = exp(-uRippleTime * uRippleDecay);
             
             // Final ripple displacement: outward bump
-            float rippleDisp = ringInfluence * decay * 0.12;
+            // SENSITIVITY ZONES: Scale by adjusted sensitivity
+            float rippleDisp = ringInfluence * decay * 0.12 * adjustedSensitivity;
             pos += dir * rippleDisp;
           }
           
@@ -326,7 +492,8 @@ export class ParticleSystem {
           if (uTickIntensity > 0.0 && aType < 1.5) {
             vec3 dir = normalize(aOriginalPos);
             float tickDist = distance(aOriginalPos, uTickZone);
-            float tickInfluence = (1.0 - smoothstep(0.0, uTickRadius, tickDist)) * uTickIntensity;
+            // SENSITIVITY ZONES: Scale tick influence by adjusted sensitivity
+            float tickInfluence = (1.0 - smoothstep(0.0, uTickRadius, tickDist)) * uTickIntensity * adjustedSensitivity;
             
             if (uTickType > 0.5 && uTickType < 1.5) {
               // TWITCH: Quick outward bump in localized zone
@@ -338,7 +505,7 @@ export class ParticleSystem {
             } else if (uTickType > 2.5) {
               // SHIVER: Noise-based displacement across whole surface
               float shiverNoise = snoise(aOriginalPos * 15.0 + uTime * 5.0);
-              pos += dir * shiverNoise * uTickIntensity * 0.03;
+              pos += dir * shiverNoise * uTickIntensity * adjustedSensitivity * 0.03;
             }
           }
           
@@ -381,7 +548,8 @@ export class ParticleSystem {
             
             // Displacement scaled by influence and strength
             // Max displacement ~0.15 units at full strength
-            float displacement = vCursorInfluence * uCursorAttractionStrength * 0.15;
+            // SENSITIVITY ZONES: Scale by adjusted sensitivity
+            float displacement = vCursorInfluence * uCursorAttractionStrength * 0.15 * adjustedSensitivity;
             pos += toCursor * displacement;
           }
           
@@ -492,7 +660,8 @@ export class ParticleSystem {
             vec3 cursorLocal = (inverse(modelMatrix) * vec4(uCursorWorldPos, 1.0)).xyz;
             vec3 awayFromCursor = normalize(pos - cursorLocal);
             float indent = uOsmosisDepth * 0.15;  // Max 15% of radius
-            float indentFactor = vCursorInfluence * indent;
+            // SENSITIVITY ZONES: Scale indent by adjusted sensitivity
+            float indentFactor = vCursorInfluence * indent * adjustedSensitivity;
             
             // Push particles away from cursor (creates visual "dent")
             pos += awayFromCursor * indentFactor;
@@ -526,6 +695,8 @@ export class ParticleSystem {
         uniform vec3 uInnerGlowColor;       // Glow color (phase-dependent)
         uniform float uInnerGlowRadius;     // Core radius (0-1 of sphere)
         uniform float uSphereRadius;        // Sphere radius for normalization
+        // Sensitivity Zones
+        uniform float uSensitivityWarmth;   // Warm color shift for sensitive zones
         
         varying float vType;
         varying float vSeed;
@@ -537,6 +708,7 @@ export class ParticleSystem {
         varying float vWarmInfluence;    // 0-1, proximity to warm traces
         varying float vTouchGlow;        // 0-1, glow for RECOGNITION phase
         varying float vDistanceToCenter; // For inner glow calculation
+        varying float vSensitivity;      // For warmth visualization
         
         void main() {
           // Circular particle
@@ -689,6 +861,21 @@ export class ParticleSystem {
             alpha = min(1.0, alpha + glowFactor * glowPulse * 0.3);
           }
           
+          // ═══════════════════════════════════════════════════════════
+          // SENSITIVITY ZONES WARMTH: "Living skin — softer parts glow warmer"
+          // ═══════════════════════════════════════════════════════════
+          if (uSensitivityWarmth > 0.0 && vSensitivity > 1.0) {
+            // warmthFactor: 0 for sensitivity=1.0, positive for higher sensitivity
+            float warmthFactor = (vSensitivity - 1.0) * uSensitivityWarmth;
+            
+            // Warm color shift (adds red/orange, removes blue)
+            vec3 warmShift = vec3(0.15, 0.05, -0.05) * warmthFactor;
+            color += warmShift;
+            
+            // Subtle brightness boost for sensitive zones
+            color *= 1.0 + warmthFactor * 0.3;
+          }
+          
           gl_FragColor = vec4(color, alpha);
         }
     `
@@ -748,7 +935,11 @@ export class ParticleSystem {
         uInnerGlowIntensity: { value: 0.4 },
         uInnerGlowColor: { value: new THREE.Color(0xFFE4B5) },  // Warm amber default
         uInnerGlowRadius: { value: 0.6 },
-        uSphereRadius: { value: 1.5 }  // Match baseRadius
+        uSphereRadius: { value: 1.5 },  // Match baseRadius
+        // Sensitivity Zones
+        uSensitivityDrift: { value: new THREE.Vector3(0, 0, 0) },
+        uSensitivityContrast: { value: 1.0 },
+        uSensitivityWarmth: { value: 0.2 }
       },
       vertexShader: this._generateVertexShader(),
       fragmentShader: this._generateFragmentShader(),
@@ -1288,5 +1479,38 @@ export class ParticleSystem {
         this.material.uniforms.uInnerGlowColor.value.copy(color)
       }
     }
+  }
+
+  /**
+   * Update sensitivity zone drift over time
+   * Creates slow organic migration of sensitivity zones (~30-50 sec cycle)
+   * "Living skin — zones breathe and shift"
+   * @param {number} delta - Frame delta time in seconds
+   */
+  updateSensitivityDrift(delta) {
+    const time = performance.now() * 0.0001  // Very slow progression
+
+    // Organic drift using different frequencies for each axis
+    this.sensitivityDriftOffset.x = Math.sin(time * 0.7) * this.sensitivityDriftSpeed
+    this.sensitivityDriftOffset.y = Math.cos(time * 1.1) * this.sensitivityDriftSpeed
+    this.sensitivityDriftOffset.z = Math.sin(time * 0.9) * this.sensitivityDriftSpeed
+
+    this.material.uniforms.uSensitivityDrift.value.copy(this.sensitivityDriftOffset)
+  }
+
+  /**
+   * Set sensitivity zones contrast (how much difference between soft/hard areas)
+   * @param {number} contrast - 0.5 (subtle) to 2.0 (dramatic)
+   */
+  setSensitivityContrast(contrast) {
+    this.material.uniforms.uSensitivityContrast.value = contrast
+  }
+
+  /**
+   * Set sensitivity zones warmth visualization
+   * @param {number} warmth - 0.0 (no tint) to 0.5 (strong warm tint)
+   */
+  setSensitivityWarmth(warmth) {
+    this.material.uniforms.uSensitivityWarmth.value = warmth
   }
 }

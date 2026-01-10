@@ -11,34 +11,21 @@
 - **#5 Organic Ticks** — 4 типа микро-движений (twitch, stretch, shiver, glance)
 - **#8 Haptic Heartbeat** — живое сердцебиение, 7 BPM паттернов по фазам
 
-### Phase 2 (IN PROGRESS)
+### Phase 2 (DONE)
 - **#4 Bioluminescence** ✅ — Inner glow с независимым ритмом
   - Коммит: `0bab499` — документация обновлена
   - Реализация в `ParticleSystem.js` и `Sphere.js`
 
+- **#6 Sensitivity Zones** ✅ — Неоднородная плотность поверхности
+  - Simplex 3D noise на CPU для карты чувствительности
+  - `aSensitivity` attribute (0.4-1.6 range)
+  - Все displacement эффекты масштабируются на sensitivity
+  - Тёплый оттенок для чувствительных зон
+  - Drift работает (~30-50 сек цикл)
+
 ---
 
 ## 🎯 Следующие задачи
-
-### #6 — Sensitivity Zones (Неоднородная плотность)
-**Оценка:** 2-3 часа, ~150-200 строк
-
-**Что нужно сделать:**
-1. Создать `_createSensitivityMap()` в `ParticleSystem.js`
-2. Добавить Simplex 3D noise (импорт из Three.js examples)
-3. Добавить `aSensitivity` attribute в геометрию (0.4-1.6 диапазон)
-4. Uniforms: `uSensitivityDrift`, `uSensitivityContrast`, `uSensitivityWarmth`
-5. Vertex shader: масштабирование displacement на sensitivity
-6. Fragment shader: тёплый оттенок для чувствительных зон
-7. Метод `updateSensitivityDrift(delta)` в update loop
-
-**Acceptance Criteria:**
-- Поверхность имеет 5-8 визуально различимых зон
-- Чувствительные зоны прогибаются на 40-60% больше
-- Зоны медленно дрейфуют (цикл ~30-50 сек)
-- Чувствительные участки имеют тёплый оттенок
-
----
 
 ### #12 — Autonomous Behavior (Инициатива от сферы)
 **Оценка:** 4-5 часов, ~400-500 строк
@@ -66,35 +53,44 @@
 | Файл | Назначение |
 |------|------------|
 | `docs/IMPLEMENTATION_ORGANIC_LIFE.md` | Полные спецификации всех фич |
-| `src/ParticleSystem.js` | Shader-логика, uniforms |
+| `src/ParticleSystem.js` | Shader-логика, uniforms, sensitivity map |
 | `src/Sphere.js` | Бизнес-логика, фазы, update loop |
 | `src/OrganicTicks.js` | Автономные микро-движения |
 | `src/HapticManager.js` | Вибрация телефона |
 
 ---
 
-## 🚦 Порядок работы
+## � Коммит Sensitivity Zones
 
-1. **Начни с #6 Sensitivity Zones** — проще, изолированная фича
-2. **Затем #12 Autonomous Behavior** — сложнее, требует интеграции
+```
+git add -A && git commit -m "feat(organic-life): add #6 Sensitivity Zones
+
+- Add aSensitivity attribute with 3-octave simplex noise (0.4-1.6 range)
+- Scale all displacement effects by adjustedSensitivity:
+  - Breathing, noise, ripple, ticks, cursor attraction, osmosis
+- Add warm color tint for sensitive zones in fragment shader
+- Add updateSensitivityDrift() for slow organic zone migration (~30-50s cycle)
+- Add setSensitivityContrast() and setSensitivityWarmth() methods
+
+Phase 2 Organic Life: Sensitivity Zones complete"
+```
 
 ---
 
-## 💡 Промпт для начала сессии
+## 💡 Промпт для начала следующей сессии
 
 ```
 Продолжи реализацию Phase 2 Organic Life для sphere-777.
 
-Следующая фича: #6 Sensitivity Zones (Неоднородная плотность).
+Следующая фича: #12 Autonomous Behavior (Инициатива от сферы).
 
-Детальный план в docs/IMPLEMENTATION_ORGANIC_LIFE.md, секция "## #6 — Неоднородная плотность".
+Детальный план в docs/IMPLEMENTATION_ORGANIC_LIFE.md, секция "## #12 — Инициатива от сферы".
 
 Краткое ТЗ:
-1. Добавить Simplex 3D noise в ParticleSystem.js
-2. Создать attribute aSensitivity (0.4-1.6) для каждой частицы
-3. Vertex shader: displacement *= sensitivity
-4. Fragment shader: тёплый оттенок для sensitivity > 1.0
-5. Uniform для медленного дрейфа зон
+1. Создать AutonomousBehavior.js — state machine
+2. Поведения: sway (30s), search/invite/withdraw (60s), hide/reach (120s)
+3. Trust-модификаторы для поведения
+4. Интеграция в main.js и Sphere.js
 
 После реализации — проверить в браузере localhost:5173.
 ```
