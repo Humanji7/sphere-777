@@ -15,6 +15,7 @@ import { Eye } from './Eye.js'
 import { MemoryManager } from './MemoryManager.js'
 import { HapticManager } from './HapticManager.js'
 import { OrganicTicks } from './OrganicTicks.js'
+import { LivingCore } from './LivingCore.js'
 
 /**
  * Main application entry point
@@ -126,6 +127,10 @@ class App {
 
         // Effect Conductor ("Living Chaos" system)
         this.effectConductor = new EffectConductor()
+
+        // Living Core (inner glow layers — heartbeat, pulse, outer glow)
+        this.livingCore = new LivingCore(this.particleSystem.baseRadius)
+        this.scene.add(this.livingCore.getMesh())
     }
 
     _bindEvents() {
@@ -203,6 +208,33 @@ class App {
         // Delegate all behavior to the Sphere orchestrator
         if (this.isStarted) {
             this.sphere.update(delta, elapsed)
+
+            // ═══════════════════════════════════════════════════════════
+            // LIVING CORE: Inner glow layers — "heart", "pulse", "aura"
+            // ═══════════════════════════════════════════════════════════
+            const breathPhase = this.particleSystem.material.uniforms.uBreathPhase?.value || 0
+            const rotation = this.particleSystem.mesh.rotation
+            const touch = this.sphere.cursorOnSphere ? {
+                position: this.sphere.cursorWorldPos || new THREE.Vector3(),
+                intensity: this.sphere.osmosisDepth || 0.5
+            } : null
+
+            this.livingCore.update(
+                delta,
+                elapsed,
+                this.sphere.currentPhase || 'peace',
+                breathPhase,
+                touch,
+                rotation
+            )
+
+            // Trigger emotional reactions
+            if (this.sphere.currentPhase === 'bleeding') {
+                this.livingCore.onBleeding()
+            }
+            if (this.sphere.osmosisActive) {
+                this.livingCore.onOsmosis(this.sphere.osmosisDepth || 0)
+            }
 
             // Sync eye rotation with sphere rolling
             this.eye.setSphereRotation(this.particleSystem.mesh.rotation)
