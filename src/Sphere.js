@@ -155,6 +155,19 @@ export class Sphere {
         this.osmosisActive = false
         this.osmosisDepth = 0  // Current osmosis depth 0-1
 
+        // Inner Glow (Bioluminescence) — "Two rhythms: lungs and heart"
+        this.innerGlowTime = 0
+        this.innerGlowFrequency = 0.30  // Hz, independent from breathing (peace default)
+        this.innerGlowConfig = {
+            peace: { freq: 0.30, intensity: 0.40, color: 0xFFE4B5 },  // Warm amber
+            listening: { freq: 0.40, intensity: 0.50, color: 0xFFD700 },  // Gold
+            tension: { freq: 0.60, intensity: 0.70, color: 0xFFA500 },  // Orange
+            bleeding: { freq: 1.00, intensity: 0.85, color: 0xFF6347 },  // Tomato
+            trauma: { freq: 0.20, intensity: 0.30, color: 0x8B0000 },  // Dark red
+            healing: { freq: 0.35, intensity: 0.45, color: 0x98FB98 },  // Pale green
+            recognition: { freq: 0.25, intensity: 0.60, color: 0xE6E6FA }   // Lavender
+        }
+
         // Debug
         this.DEBUG = false
     }
@@ -291,6 +304,9 @@ export class Sphere {
 
         // Process current phase and check transitions
         this._processPhase(delta, inputState)
+
+        // Update Inner Glow (Bioluminescence)
+        this._updateInnerGlow(delta)
 
         // Apply effects to particle system
         this._applyEffects(delta, inputState)
@@ -673,6 +689,38 @@ export class Sphere {
     }
 
     /**
+     * Update Inner Glow (Bioluminescence) — independent pulsation rhythm
+     * "Two rhythms — lungs and heart. They almost match, but not quite."
+     * @param {number} delta - Time since last frame
+     */
+    _updateInnerGlow(delta) {
+        // Advance glow time at current frequency
+        this.innerGlowTime += delta * this.innerGlowFrequency
+
+        // Sinusoidal pulsation with subtle noise for organic feel
+        const baseGlow = Math.sin(this.innerGlowTime * Math.PI * 2) * 0.5 + 0.5
+        const noise = (Math.random() - 0.5) * 0.05  // ±2.5% variation
+        const glowPhase = Math.max(0, Math.min(1, baseGlow + noise))
+
+        // Get current config for intensity and color
+        const config = this.innerGlowConfig[this.currentPhase] || this.innerGlowConfig.peace
+
+        // Apply to particle system
+        this.particles.setInnerGlow(glowPhase, config.intensity, config.color)
+    }
+
+    /**
+     * Update inner glow parameters for new phase
+     * Called when phase transitions
+     * @param {string} phase - New emotional phase
+     */
+    _updateInnerGlowForPhase(phase) {
+        const config = this.innerGlowConfig[phase] || this.innerGlowConfig.peace
+        this.innerGlowFrequency = config.freq
+        // Intensity and color will be applied in _updateInnerGlow each frame
+    }
+
+    /**
      * Compute target rotation to face the touch point
      * The eye is at local (0, 0, baseRadius) — north pole of sphere
      * We want to rotate the sphere so the north pole points toward touchPos
@@ -729,6 +777,9 @@ export class Sphere {
         if (this.eye) {
             this.eye.setEmotionalPhase(newPhase)
         }
+
+        // Update inner glow frequency for new phase
+        this._updateInnerGlowForPhase(newPhase)
     }
 
     _applyEffects(delta, inputState) {

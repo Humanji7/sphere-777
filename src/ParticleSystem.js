@@ -172,6 +172,7 @@ export class ParticleSystem {
         varying float vGhostInfluence;   // 0-1, proximity to ghost traces
         varying float vWarmInfluence;    // 0-1, proximity to warm traces
         varying float vTouchGlow;        // 0-1, glow for RECOGNITION phase
+        varying float vDistanceToCenter; // For inner glow calculation
         
         // ========== Simplex 3D Noise ==========
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -272,6 +273,9 @@ export class ParticleSystem {
           
           // Pass unified curve to fragment shader for aura effect
           vUnifiedCurve = unifiedCurve;
+          
+          // Pass distance to center for inner glow
+          vDistanceToCenter = length(aOriginalPos);
           
           // Organic surface noise: Dual-Layer Goosebumps
           // Layer 1: Base waves (low freq, slow) - always present, organic
@@ -516,6 +520,12 @@ export class ParticleSystem {
         uniform float uSparkleIntensity;
         uniform float uCursorInfluenceStrength;  // 0-1, master glow control
         uniform float uOsmosisDepth;  // 0-1, hold gesture penetration depth
+        // Inner Glow (Bioluminescence)
+        uniform float uInnerGlowPhase;      // 0-1, independent glow phase
+        uniform float uInnerGlowIntensity;  // Base intensity
+        uniform vec3 uInnerGlowColor;       // Glow color (phase-dependent)
+        uniform float uInnerGlowRadius;     // Core radius (0-1 of sphere)
+        uniform float uSphereRadius;        // Sphere radius for normalization
         
         varying float vType;
         varying float vSeed;
@@ -526,6 +536,7 @@ export class ParticleSystem {
         varying float vGhostInfluence;   // 0-1, proximity to ghost traces
         varying float vWarmInfluence;    // 0-1, proximity to warm traces
         varying float vTouchGlow;        // 0-1, glow for RECOGNITION phase
+        varying float vDistanceToCenter; // For inner glow calculation
         
         void main() {
           // Circular particle
@@ -655,6 +666,29 @@ export class ParticleSystem {
             alpha = min(1.0, alpha + warmth * 0.2);
           }
           
+          // ═══════════════════════════════════════════════════════════
+          // INNER GLOW (Bioluminescence): "Two rhythms — lungs and heart"
+          // Particles closer to center glow with independent pulsation
+          // ═══════════════════════════════════════════════════════════
+          if (uInnerGlowIntensity > 0.0) {
+            // Normalize distance to sphere radius
+            float distNormalized = vDistanceToCenter / uSphereRadius;
+            
+            // Glow factor: stronger near center, fades toward surface
+            float glowFactor = 1.0 - smoothstep(0.0, uInnerGlowRadius, distNormalized);
+            glowFactor *= glowFactor;  // Quadratic falloff for core concentration
+            
+            // Pulsation (independent from breathing)
+            float glowPulse = uInnerGlowPhase * uInnerGlowIntensity;
+            
+            // Additive glow contribution
+            vec3 glowContribution = uInnerGlowColor * glowFactor * glowPulse;
+            color += glowContribution * 0.5;
+            
+            // Subtle alpha boost for inner glow visibility
+            alpha = min(1.0, alpha + glowFactor * glowPulse * 0.3);
+          }
+          
           gl_FragColor = vec4(color, alpha);
         }
     `
@@ -708,7 +742,13 @@ export class ParticleSystem {
         uTickZone: { value: new THREE.Vector3(0, 0, 0) },
         uTickRadius: { value: 0.0 },
         uTickIntensity: { value: 0.0 },
-        uTickType: { value: 0 }
+        uTickType: { value: 0 },
+        // Inner Glow (Bioluminescence)
+        uInnerGlowPhase: { value: 0.0 },
+        uInnerGlowIntensity: { value: 0.4 },
+        uInnerGlowColor: { value: new THREE.Color(0xFFE4B5) },  // Warm amber default
+        uInnerGlowRadius: { value: 0.6 },
+        uSphereRadius: { value: 1.5 }  // Match baseRadius
       },
       vertexShader: this._generateVertexShader(),
       fragmentShader: this._generateFragmentShader(),
@@ -1228,5 +1268,25 @@ export class ParticleSystem {
   dispose() {
     this.geometry.dispose()
     this.material.dispose()
+  }
+
+  /**
+   * Set inner glow (bioluminescence) parameters
+   * @param {number} phase - 0-1, pulsation phase
+   * @param {number} intensity - 0-1, glow intensity
+   * @param {THREE.Color|number} color - Glow color (hex or THREE.Color)
+   */
+  setInnerGlow(phase, intensity = null, color = null) {
+    this.material.uniforms.uInnerGlowPhase.value = phase
+    if (intensity !== null) {
+      this.material.uniforms.uInnerGlowIntensity.value = intensity
+    }
+    if (color !== null) {
+      if (typeof color === 'number') {
+        this.material.uniforms.uInnerGlowColor.value.setHex(color)
+      } else {
+        this.material.uniforms.uInnerGlowColor.value.copy(color)
+      }
+    }
   }
 }
