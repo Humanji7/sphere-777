@@ -32,9 +32,9 @@ export class IdleAgency {
         this.mood = 'calm'  // calm | curious | restless | attention-seeking
         this.moodTransitions = {
             calm: 0,
-            curious: 8,
-            restless: 20,
-            'attention-seeking': 35
+            curious: 2,          // Quick reaction: "она заметила"
+            restless: 4,         // "Куда ты?"
+            'attention-seeking': 6   // "Смотри на меня!"
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -210,11 +210,19 @@ export class IdleAgency {
     }
 
     /**
-     * Attention-seeking: Bouncing + brightness flashes
+     * Attention-seeking: Bouncing + brightness flashes + face viewer
+     * Note: Does NOT inherit restless micro-rotations — face-viewer takes priority
      */
     _behaveAttentionSeeking(delta, elapsed) {
-        // Inherit restless behavior
-        this._behaveRestless(delta, elapsed)
+        // Only inherit eye wandering from curious (NOT restless micro-rotations!)
+        // Face-viewer will control sphere rotation
+        this._behaveCurious(delta, elapsed)
+
+        // ═══════════════════════════════════════════════════════════
+        // FACE VIEWER: Smoothly rotate to look at camera
+        // "Смотри на меня!" — sphere turns its eye toward the viewer
+        // ═══════════════════════════════════════════════════════════
+        this._faceViewer(delta)
 
         // Continuous bounce (sine wave)
         this.bouncePhase += delta * 2.5  // ~0.4s period
@@ -231,6 +239,29 @@ export class IdleAgency {
             this.flashIntensity = 0.6
             this.behaviorTimers.flash = 3 + Math.random() * 2  // Every 3-5s
         }
+    }
+
+    /**
+     * Face Viewer: Smoothly rotate sphere so eye faces camera
+     * Eye is at north pole (0, 0, 1) in local space
+     * Target: rotationX = 0, rotationY = 0 (eye looking at +Z toward camera)
+     * 
+     * Note: We modify particles.rotationX/Y directly because
+     * ParticleSystem.updateRolling() overwrites mesh.rotation every frame
+     */
+    _faceViewer(delta) {
+        if (!this.particles) return
+
+        // Decay rotationX and rotationY toward 0
+        // Speed 3.0 = noticeable but smooth
+        const decay = delta * 3.0
+
+        this.particles.rotationX *= (1 - decay)
+        this.particles.rotationY *= (1 - decay)
+
+        // Also kill rolling velocity to prevent fighting
+        this.particles.rollingVelocityX *= 0.5
+        this.particles.rollingVelocityY *= 0.5
     }
 
     /**
