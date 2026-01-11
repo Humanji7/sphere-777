@@ -147,12 +147,53 @@ detuneCents = n <= 2 ? 8 : n <= 8 ? 5 : 2
 
 ---
 
-## 📋 Next Session TODO
+## 📋 Debug Session Protocol
 
-- [ ] Implement tuning Set A (220Hz)
-- [ ] A/B test: с/без detune
-- [ ] Проверить: формант Q слишком высокий?
-- [ ] Записать: exact параметры которые работают
+### Quick Start: Open Browser Console (F12 → Console)
+
+**Step 0: Click to start (activates audio)**
+
+**Step 1: Isolate L1 only (spectral body = 110Hz + detune)**
+```javascript
+isolateSound('spectral')
+// Listen. Does it buzz? → L1 is the problem (detune too aggressive)
+```
+
+**Step 2: Add L1.5 (breath noise)**
+```javascript
+setSound('breathNoise', true)
+// Listen. More buzz? → Breath noise adds to problem
+```
+
+**Step 3: Add L4 (formant voice)**
+```javascript
+setSound('formantVoice', true)
+// Listen. Even more buzz? → Formant Q too high
+```
+
+**Step 4: Enable all and compare**
+```javascript
+isolateSound()  // All layers ON
+```
+
+### Available Commands
+| Command | Effect |
+|---------|--------|
+| `isolateSound('spectral')` | Only L1 (harmonics) |
+| `isolateSound('breathNoise')` | Only L1.5 (breath) |
+| `isolateSound('formantVoice')` | Only L4 (vowels) |
+| `isolateSound()` | Enable ALL layers |
+| `setSound('breathNoise', false)` | Disable only breath |
+| `setSound('formantVoice', false)` | Disable only formant |
+
+### Expected Results Matrix
+
+| Layer | Sound Character | If Buzz Here |
+|-------|-----------------|--------------|
+| L1 only | Synthetic choir, soft beating | ↑ detune too aggressive (18c→8c) |
+| L1+L1.5 | + airy breath | Check bandpass freq (400→800Hz) |
+| L1+L4 | + vowel resonance | ↓ formant Q (10→5) |
+| All | Full organic | Track which combo adds buzz |
 
 ---
 

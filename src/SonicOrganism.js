@@ -36,6 +36,15 @@ export class SonicOrganism {
         this.debug = false
         this.frameCount = 0
 
+        // 🔬 Layer Isolation for debugging "bee buzz" issue
+        // Set any to false to disable that layer and isolate the problem
+        this.layerEnabled = {
+            spectral: true,      // L1: 32 harmonics @ 110Hz + detune
+            breathNoise: true,   // L1.5: White noise with async envelope
+            formantVoice: true,  // L4: Vowel filters + vibrato
+            spatial: true        // L5: HRTF panner
+        }
+
         // Granular membrane state (L3)
         this.granularNode = null
         this.granularReady = false
@@ -60,7 +69,7 @@ export class SonicOrganism {
     // ═══════════════════════════════════════════════════════════════════════
 
     _initSpectralBody() {
-        const FUNDAMENTAL = 110  // A2, audible base tone (moved up from 55Hz to eliminate drone)
+        const FUNDAMENTAL = 165  // E3 (sweet spot between 110 drone and 220 mosquito)
         const HARMONIC_COUNT = 32
 
         // Group gain nodes for band control
@@ -128,8 +137,8 @@ export class SonicOrganism {
         gain.gain.value = baseAmplitude * 0.3  // Scale down for mixing
 
         // Graduated detuning for organic "chorus" feel
-        // Lower harmonics get more detune for warm beating, higher harmonics stay clean
-        const detuneCents = n <= 2 ? 18 : n <= 8 ? 10 : 4
+        // Minimal detune: 3-2-1 cents — just enough warmth, no buzz
+        const detuneCents = n <= 2 ? 3 : n <= 8 ? 2 : 1
         const detune = (Math.random() - 0.5) * detuneCents * 2
         oscillator.detune.value = detune
 
@@ -686,20 +695,26 @@ export class SonicOrganism {
         this._updateGranularMembrane(touch, ghostTraces)
 
         // Apply Layer 1.5: Breath Noise (synced to breath pulse)
-        this._updateBreathNoise(pulses.breath, elapsed)
+        if (this.layerEnabled.breathNoise) {
+            this._updateBreathNoise(pulses.breath, elapsed)
+        }
 
         // Apply Layer 5: Spatial Field (cursor following)
-        const cursorX = touch.x || 0
-        const cursorY = touch.y || 0
-        this._updateSpatialField(cursorX, cursorY)
+        if (this.layerEnabled.spatial) {
+            const cursorX = touch.x || 0
+            const cursorY = touch.y || 0
+            this._updateSpatialField(cursorX, cursorY)
+        }
 
         // Apply Layer 4: Formant Voice (emotional vowel morphing)
-        this._updateFormantVoice({
-            trustIndex: this.currentTrustIndex,
-            colorProgress: this.currentColorProgress,
-            isActive,
-            holdSaturation
-        })
+        if (this.layerEnabled.formantVoice) {
+            this._updateFormantVoice({
+                trustIndex: this.currentTrustIndex,
+                colorProgress: this.currentColorProgress,
+                isActive,
+                holdSaturation
+            })
+        }
 
         // Debug logging (every 60 frames)
         if (this.debug && this.frameCount % 60 === 0) {
@@ -815,6 +830,39 @@ export class SonicOrganism {
 
     setDebug(enabled) {
         this.debug = enabled
+    }
+
+    /**
+     * 🔬 Enable/disable individual layers for debugging
+     * @param {string} layer - 'spectral', 'breathNoise', 'formantVoice', 'spatial'
+     * @param {boolean} enabled
+     */
+    setLayer(layer, enabled) {
+        if (this.layerEnabled.hasOwnProperty(layer)) {
+            this.layerEnabled[layer] = enabled
+            console.log(`[SonicOrganism] Layer '${layer}' ${enabled ? 'ENABLED' : 'DISABLED'}`)
+            console.log('[SonicOrganism] Current layers:', this.layerEnabled)
+        } else {
+            console.warn(`[SonicOrganism] Unknown layer: ${layer}. Valid: spectral, breathNoise, formantVoice, spatial`)
+        }
+    }
+
+    /**
+     * 🔬 Isolate a single layer (disable all others)
+     * Call with no args to enable all layers
+     */
+    isolateLayer(layer = null) {
+        if (!layer) {
+            // Enable all
+            Object.keys(this.layerEnabled).forEach(k => this.layerEnabled[k] = true)
+            console.log('[SonicOrganism] ALL layers enabled')
+        } else if (this.layerEnabled.hasOwnProperty(layer)) {
+            Object.keys(this.layerEnabled).forEach(k => this.layerEnabled[k] = (k === layer))
+            console.log(`[SonicOrganism] ISOLATED layer: ${layer}`)
+        } else {
+            console.warn(`[SonicOrganism] Unknown layer: ${layer}`)
+        }
+        console.log('[SonicOrganism] Current layers:', this.layerEnabled)
     }
 
     setVolume(volume) {

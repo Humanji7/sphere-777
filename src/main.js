@@ -395,3 +395,26 @@ window.returnToOrganic = () => {
         console.log('[DEBUG] Returning to organic')
     }
 }
+
+// 🔬 Sound debugging commands
+// Usage from browser console:
+//   isolateSound('spectral')     - hear only L1 (110Hz harmonics + detune)
+//   isolateSound('breathNoise')  - hear only L1.5 (filtered white noise)
+//   isolateSound('formantVoice') - hear only L4 (vowel filters + vibrato)
+//   isolateSound('spatial')      - this won't make sound alone, it's just panner
+//   isolateSound()               - enable ALL layers again
+//   setSound('breathNoise', false) - disable breath layer only
+window.isolateSound = (layer) => {
+    if (window.app.sonicOrganism) {
+        window.app.sonicOrganism.isolateLayer(layer)
+    } else {
+        console.warn('[DEBUG] SonicOrganism not initialized. Click to start first!')
+    }
+}
+window.setSound = (layer, enabled) => {
+    if (window.app.sonicOrganism) {
+        window.app.sonicOrganism.setLayer(layer, enabled)
+    } else {
+        console.warn('[DEBUG] SonicOrganism not initialized. Click to start first!')
+    }
+}
