@@ -38,9 +38,11 @@ export class BeetleShell extends BaseShell {
         this.modelLoaded = false
         this.loadingPromise = null
 
-        // Cursor-guided rotation state
-        this.targetWorldPoint = null
-        this.rotationSpeed = 3.0  // Slerp speed for smooth rotation
+        // Cursor-guided rotation state with smooth transitions (like Sphere)
+        this._cursorInfluence = 0           // Target influence (0 or 1)
+        this._cursorInfluenceSmoothed = 0   // Smoothed value for transitions
+        this._lastTargetPoint = null        // Last known cursor position (persists after cursor leaves)
+        this.rotationSpeed = 3.0            // Slerp speed for smooth rotation
         this._targetQuat = new THREE.Quaternion()
         this._currentQuat = new THREE.Quaternion()
 
@@ -461,44 +463,52 @@ export class BeetleShell extends BaseShell {
             }
         }
 
-        // Cursor-guided rotation OR slow unsettling auto-rotation
+        // Smooth cursor influence transition (like Sphere)
+        // Fast fade-in (8.0), slow fade-out (3.0)
         if (this.mesh && this.isVisible) {
-            if (this.targetWorldPoint) {
-                // ═══════════════════════════════════════════════════════════
-                // CURSOR-GUIDED ROTATION — «жук поворачивается к пальцу»
-                // Using setFromUnitVectors() to avoid gimbal lock near poles
-                // ═══════════════════════════════════════════════════════════
+            const smoothSpeed = this._cursorInfluence > this._cursorInfluenceSmoothed ? 8.0 : 3.0
+            this._cursorInfluenceSmoothed += (this._cursorInfluence - this._cursorInfluenceSmoothed) *
+                (1 - Math.exp(-smoothSpeed * delta))
 
-                // Direction from mesh center to target point (normalized)
+            // Clamp near-zero for clean transition
+            if (this._cursorInfluenceSmoothed < 0.001) {
+                this._cursorInfluenceSmoothed = 0
+            }
+
+            const influence = this._cursorInfluenceSmoothed
+
+            // ═══════════════════════════════════════════════════════════
+            // CURSOR-GUIDED ROTATION — blended with influence
+            // ═══════════════════════════════════════════════════════════
+            if (influence > 0 && this._lastTargetPoint) {
                 const meshPos = this.mesh.position
                 const toTarget = new THREE.Vector3()
-                    .copy(this.targetWorldPoint)
+                    .copy(this._lastTargetPoint)
                     .sub(meshPos)
                     .normalize()
 
-                // The "front" of beetle is +Z in local space (like Sphere's north pole)
                 const front = new THREE.Vector3(0, 0, 1)
-
-                // Compute quaternion that rotates front to point toward target
-                // This has NO gimbal lock (computes shortest arc between vectors)
                 this._targetQuat.setFromUnitVectors(front, toTarget)
 
-                // Smooth slerp rotation with adaptive speed
-                // Slow down near poles for extra smoothness
-                const poleProximity = Math.abs(toTarget.y)  // 0 = equator, 1 = pole
-                const adaptiveSpeed = this.rotationSpeed * (1 - poleProximity * 0.3)
+                // Speed modulated by influence (slows down as cursor fades)
+                const effectiveSpeed = this.rotationSpeed * influence
 
                 this._currentQuat.setFromEuler(this.mesh.rotation)
-                this._currentQuat.slerp(this._targetQuat, adaptiveSpeed * delta)
+                this._currentQuat.slerp(this._targetQuat, effectiveSpeed * delta)
                 this.mesh.rotation.setFromQuaternion(this._currentQuat)
 
-                // Add subtle wobble on top of rotation
-                this.mesh.rotation.z += Math.sin(elapsed * 0.15) * 0.015
-            } else {
-                // Auto-rotation when no cursor target
-                this.mesh.rotation.y += delta * 0.03
-                this.mesh.rotation.z = Math.sin(elapsed * 0.15) * 0.02
-                this.mesh.rotation.x = Math.sin(elapsed * 0.1) * 0.01
+                // Wobble diminishes with influence
+                this.mesh.rotation.z += Math.sin(elapsed * 0.15) * 0.015 * influence
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            // AUTO-ROTATION — blended with (1 - influence)
+            // ═══════════════════════════════════════════════════════════
+            if (influence < 1) {
+                const driftWeight = 1 - influence
+                this.mesh.rotation.y += delta * 0.03 * driftWeight
+                this.mesh.rotation.z += Math.sin(elapsed * 0.15) * 0.02 * driftWeight
+                this.mesh.rotation.x += Math.sin(elapsed * 0.1) * 0.01 * driftWeight
             }
         }
     }
@@ -506,16 +516,18 @@ export class BeetleShell extends BaseShell {
     /**
      * Set target point for cursor-guided rotation
      * BeetleShell will smoothly rotate to face this point
-     * @param {THREE.Vector3|null} worldPos - target point in world space, or null to clear
+     * @param {THREE.Vector3|null} worldPos - target point in world space, or null to trigger fade-out
      */
     setTargetRotationPoint(worldPos) {
         if (worldPos) {
-            if (!this.targetWorldPoint) {
-                this.targetWorldPoint = new THREE.Vector3()
+            if (!this._lastTargetPoint) {
+                this._lastTargetPoint = new THREE.Vector3()
             }
-            this.targetWorldPoint.copy(worldPos)
+            this._lastTargetPoint.copy(worldPos)
+            this._cursorInfluence = 1.0  // Target: active
         } else {
-            this.targetWorldPoint = null
+            this._cursorInfluence = 0    // Target: fade out
+            // Keep _lastTargetPoint — continue slerp toward it during fade
         }
     }
 
