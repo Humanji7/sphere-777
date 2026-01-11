@@ -149,6 +149,12 @@ class App {
         beetleShell.preload().then((loaded) => {
             console.log(`[App] BeetleShell model: ${loaded ? 'GLB loaded' : 'using procedural fallback'}`)
         })
+
+        // Connect components for visibility management during shell transitions
+        this.transformManager.setComponents(this.livingCore, this.eye)
+        // Connect input for cursor forwarding to active shell
+        this.transformManager.setInput(this.inputManager)
+
         // this.transformManager.DEBUG = true  // Uncomment for debug logging
     }
 

@@ -194,7 +194,11 @@ export class BeetleShell extends BaseShell {
                 // Enhanced shader uniforms
                 uIridescenceStrength: { value: 0.6 },
                 uSubsurfaceColor: { value: new THREE.Color(0x331100) },  // Deep amber SSS
-                uOrganicNoiseScale: { value: 3.0 }
+                uOrganicNoiseScale: { value: 3.0 },
+                // Cursor interaction uniforms
+                uCursorWorldPos: { value: new THREE.Vector3(0, 0, 10) },
+                uCursorInfluenceRadius: { value: 0.8 },
+                uCursorInfluenceStrength: { value: 0.0 }
             },
             vertexShader: `
         attribute float aSegment;
@@ -205,11 +209,15 @@ export class BeetleShell extends BaseShell {
         varying float vSegment;
         varying float vEdgeFactor;
         varying vec3 vViewDir;
+        varying float vCursorInfluence;
         
         uniform float uTime;
         uniform float uPulseSpeed;
         uniform float uSegmentCount;
         uniform float uUseVertexColorSeams;
+        // Cursor interaction
+        uniform vec3 uCursorWorldPos;
+        uniform float uCursorInfluenceRadius;
         
         void main() {
           vNormal = normalize(normalMatrix * normal);
@@ -240,6 +248,11 @@ export class BeetleShell extends BaseShell {
           
           vWorldPosition = (modelMatrix * vec4(displaced, 1.0)).xyz;
           vViewDir = normalize(cameraPosition - vWorldPosition);
+          
+          // Calculate cursor influence (0-1, proximity to cursor)
+          float cursorDist = distance(vWorldPosition, uCursorWorldPos);
+          vCursorInfluence = 1.0 - smoothstep(0.0, uCursorInfluenceRadius, cursorDist);
+          
           gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
         }
       `,
@@ -254,6 +267,8 @@ export class BeetleShell extends BaseShell {
         uniform float uIridescenceStrength;
         uniform vec3 uSubsurfaceColor;
         uniform float uOrganicNoiseScale;
+        // Cursor interaction
+        uniform float uCursorInfluenceStrength;
         
         varying vec3 vNormal;
         varying vec3 vPosition;
@@ -261,6 +276,7 @@ export class BeetleShell extends BaseShell {
         varying float vSegment;
         varying float vEdgeFactor;
         varying vec3 vViewDir;
+        varying float vCursorInfluence;
         
         // 3D Simplex noise for organic patterns
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -386,6 +402,21 @@ export class BeetleShell extends BaseShell {
           
           baseColor = mix(baseColor, seamColor, edgeGlow);
           
+          // === CURSOR PROXIMITY GLOW ===
+          // Warm amber glow where user hovers — "she responds to touch"
+          if (uCursorInfluenceStrength > 0.0 && vCursorInfluence > 0.0) {
+            float glowAmount = vCursorInfluence * uCursorInfluenceStrength;
+            
+            // Warm amber-orange glow (different from sphere's pink-white)
+            vec3 cursorGlowColor = vec3(1.0, 0.65, 0.25);
+            
+            // Add glow to color (additive blend)
+            baseColor += cursorGlowColor * glowAmount * 0.5;
+            
+            // Also boost seam glow near cursor for extra effect
+            baseColor += uSeamGlowColor * glowAmount * 0.3;
+          }
+          
           // === OVERALL PULSING ===
           float globalPulse = sin(uTime * uPulseSpeed * 0.8) * 0.06 + 0.94;
           baseColor *= globalPulse;
@@ -430,6 +461,26 @@ export class BeetleShell extends BaseShell {
             this.mesh.rotation.z = Math.sin(elapsed * 0.15) * 0.02
             // Slight wobble
             this.mesh.rotation.x = Math.sin(elapsed * 0.1) * 0.01
+        }
+    }
+
+    /**
+     * Set cursor position in world space (for proximity glow effect)
+     * @param {THREE.Vector3} worldPos - cursor position on shell surface
+     */
+    setCursorWorldPos(worldPos) {
+        if (this.material?.uniforms?.uCursorWorldPos) {
+            this.material.uniforms.uCursorWorldPos.value.copy(worldPos)
+        }
+    }
+
+    /**
+     * Set cursor influence strength (glow intensity)
+     * @param {number} strength - 0 (off) to 1 (full glow)
+     */
+    setCursorInfluence(strength) {
+        if (this.material?.uniforms?.uCursorInfluenceStrength) {
+            this.material.uniforms.uCursorInfluenceStrength.value = Math.max(0, Math.min(1, strength))
         }
     }
 }

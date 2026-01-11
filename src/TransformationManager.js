@@ -9,6 +9,8 @@
  * States: organic | beetle | drone | eye
  */
 
+import * as THREE from 'three'
+
 export class TransformationManager {
     constructor(scene, particles, camera) {
         this.scene = scene
@@ -39,8 +41,35 @@ export class TransformationManager {
         this.onTransitionStart = null
         this.onTransitionComplete = null
 
+        // External components to hide during shell transitions
+        this.livingCore = null
+        this.eye = null
+
+        // Input forwarding
+        this.inputManager = null
+        this.raycaster = new THREE.Raycaster()
+        this.cursorNDC = new THREE.Vector2()
+
         // Debug
         this.DEBUG = false
+    }
+
+    /**
+     * Set external components that should be hidden during shell transitions
+     * @param {LivingCore} livingCore - Inner glow layers
+     * @param {Eye} eye - Organic eye
+     */
+    setComponents(livingCore, eye) {
+        this.livingCore = livingCore
+        this.eye = eye
+    }
+
+    /**
+     * Set input manager for cursor forwarding to active shell
+     * @param {InputManager} inputManager
+     */
+    setInput(inputManager) {
+        this.inputManager = inputManager
     }
 
     _randomInterval() {
@@ -104,9 +133,17 @@ export class TransformationManager {
 
         // Update active shell when fully transitioned (not during return to organic)
         if (!this.isTransitioning && this.currentState !== 'organic' && this.shells[this.currentState]) {
-            this.shells[this.currentState].update(delta, elapsed)
+            const activeShell = this.shells[this.currentState]
+            activeShell.update(delta, elapsed)
+
             // Keep particles hidden while in shell state
             this.particles.setTransformFade(0)
+            // Keep LivingCore + Eye hidden too
+            if (this.livingCore) this._setLivingCoreOpacity(0)
+            if (this.eye) this._setEyeOpacity(0)
+
+            // Forward cursor input to active shell
+            this._forwardCursorToShell(activeShell)
         }
     }
 
@@ -146,16 +183,29 @@ export class TransformationManager {
 
         // Transitioning TO a shell
         if (this.currentState === 'organic' && this.targetState !== 'organic') {
-            // Phase 1: Particles fade out (0-50%)
+            // Phase 1: Particles + LivingCore + Eye fade out (0-50%)
             if (this.transitionProgress < 0.5) {
                 const fadeOutProgress = this.transitionProgress / 0.5  // 0-1
                 this.particles.setTransformFade(1 - fadeOutProgress)  // 1 → 0
+
+                // Fade out LivingCore (set opacity on all layer materials)
+                if (this.livingCore) {
+                    this._setLivingCoreOpacity(1 - fadeOutProgress)
+                }
+                // Fade out Eye
+                if (this.eye) {
+                    this._setEyeOpacity(1 - fadeOutProgress)
+                }
             }
             // Phase 2: Particles hidden, shell fades in (50%+)
             else if (this.transitionProgress >= 0.5 && this.transitionProgress < 0.55) {
                 // Start shell fade-in at 50%
                 this.particles.setTransformFade(0)
                 this.shells[this.targetState].show(this.transitionDuration * 0.4)
+
+                // Ensure LivingCore + Eye fully hidden
+                if (this.livingCore) this._setLivingCoreOpacity(0)
+                if (this.eye) this._setEyeOpacity(0)
             }
         }
 
@@ -165,10 +215,14 @@ export class TransformationManager {
             if (this.transitionProgress < 0.5) {
                 // Shell hide was already called in returnToOrganic()
             }
-            // Phase 2: Particles fade in (50-100%)
+            // Phase 2: Particles + LivingCore + Eye fade in (50-100%)
             else {
                 const fadeInProgress = (this.transitionProgress - 0.5) / 0.5  // 0-1
                 this.particles.setTransformFade(fadeInProgress)  // 0 → 1
+
+                // Fade in LivingCore and Eye
+                if (this.livingCore) this._setLivingCoreOpacity(fadeInProgress)
+                if (this.eye) this._setEyeOpacity(fadeInProgress)
             }
         }
 
@@ -227,5 +281,67 @@ export class TransformationManager {
 
     isInTransition() {
         return this.isTransitioning
+    }
+
+    /**
+     * Set opacity on all LivingCore layer materials
+     * @param {number} opacity - 0-1
+     */
+    _setLivingCoreOpacity(opacity) {
+        if (!this.livingCore?.group) return
+
+        this.livingCore.group.traverse((child) => {
+            if (child.isMesh && child.material) {
+                // Preserve original intensity but scale by opacity
+                child.material.opacity = opacity
+                child.visible = opacity > 0.01
+            }
+        })
+    }
+
+    /**
+     * Set opacity on Eye mesh
+     * @param {number} opacity - 0-1
+     */
+    _setEyeOpacity(opacity) {
+        if (!this.eye) return
+
+        const mesh = this.eye.getMesh?.() || this.eye.mesh
+        if (mesh?.material) {
+            mesh.material.opacity = opacity
+            mesh.visible = opacity > 0.01
+        }
+    }
+
+    /**
+     * Forward cursor input to active shell via raycast
+     * @param {BaseShell} shell - active shell to forward input to
+     */
+    _forwardCursorToShell(shell) {
+        if (!this.inputManager || !shell.mesh) return
+
+        const inputState = this.inputManager.getState()
+
+        // Convert screen position to NDC (-1 to 1)
+        this.cursorNDC.x = inputState.position.x
+        this.cursorNDC.y = inputState.position.y
+
+        // Set up raycaster from camera through cursor
+        this.raycaster.setFromCamera(this.cursorNDC, this.camera)
+
+        // Raycast against shell mesh
+        const intersects = this.raycaster.intersectObject(shell.mesh, false)
+
+        if (intersects.length > 0) {
+            const hit = intersects[0]
+            // Cursor is on shell — pass world position and turn on glow
+            shell.setCursorWorldPos?.(hit.point)
+            // Stronger glow when actively touching, subtle glow on hover
+            const glowIntensity = this.inputManager.isActive ? 0.9 : 0.5
+            shell.setCursorInfluence?.(glowIntensity)
+        } else {
+            // Cursor off shell — fade glow
+            shell.setCursorInfluence?.(0)
+        }
     }
 }
