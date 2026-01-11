@@ -465,30 +465,31 @@ export class BeetleShell extends BaseShell {
         if (this.mesh && this.isVisible) {
             if (this.targetWorldPoint) {
                 // ═══════════════════════════════════════════════════════════
-                // CURSOR-GUIDED ROTATION — "жук поворачивается к пальцу"
+                // CURSOR-GUIDED ROTATION — «жук поворачивается к пальцу»
+                // Using setFromUnitVectors() to avoid gimbal lock near poles
                 // ═══════════════════════════════════════════════════════════
 
-                // Calculate direction from mesh center to target point
+                // Direction from mesh center to target point (normalized)
                 const meshPos = this.mesh.position
-                const direction = new THREE.Vector3()
+                const toTarget = new THREE.Vector3()
                     .copy(this.targetWorldPoint)
                     .sub(meshPos)
                     .normalize()
 
-                // Create target quaternion looking at the point
-                // We want the "front" of beetle to face the cursor
-                // Using lookAt-style rotation
-                const up = new THREE.Vector3(0, 1, 0)
-                const lookMatrix = new THREE.Matrix4().lookAt(
-                    meshPos,
-                    this.targetWorldPoint,
-                    up
-                )
-                this._targetQuat.setFromRotationMatrix(lookMatrix)
+                // The "front" of beetle is +Z in local space (like Sphere's north pole)
+                const front = new THREE.Vector3(0, 0, 1)
 
-                // Smooth slerp rotation
+                // Compute quaternion that rotates front to point toward target
+                // This has NO gimbal lock (computes shortest arc between vectors)
+                this._targetQuat.setFromUnitVectors(front, toTarget)
+
+                // Smooth slerp rotation with adaptive speed
+                // Slow down near poles for extra smoothness
+                const poleProximity = Math.abs(toTarget.y)  // 0 = equator, 1 = pole
+                const adaptiveSpeed = this.rotationSpeed * (1 - poleProximity * 0.3)
+
                 this._currentQuat.setFromEuler(this.mesh.rotation)
-                this._currentQuat.slerp(this._targetQuat, this.rotationSpeed * delta)
+                this._currentQuat.slerp(this._targetQuat, adaptiveSpeed * delta)
                 this.mesh.rotation.setFromQuaternion(this._currentQuat)
 
                 // Add subtle wobble on top of rotation
