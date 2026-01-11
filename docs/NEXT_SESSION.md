@@ -1,6 +1,6 @@
 # 🌐 SPHERE-777: Текущий Статус
 
-**Обновлено:** 2026-01-11 13:06
+**Обновлено:** 2026-01-11 15:30
 
 ---
 
@@ -31,6 +31,14 @@
 - Face-viewer rotation
 - Z-bounce + luminous flashes
 - 🆕 **Mobile fix:** `activeDecayTimer` в InputManager
+
+### BeetleShell (Transformation State A) ✅
+- **Cursor-guided rotation** — жук поворачивается к пальцу
+- **setFromUnitVectors()** — без gimbal lock на полюсах
+- 🆕 **Smooth cursor transition** — exponential smoothing как у Sphere
+  - Fast fade-in (8.0) при появлении курсора
+  - Slow fade-out (3.0) при уходе курсора
+  - Плавный blend между cursor-guided и auto-rotation
 
 ### Audio
 - Sonic Organism — 7-слойный звук
