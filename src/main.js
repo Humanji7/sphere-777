@@ -16,6 +16,7 @@ import { MemoryManager } from './MemoryManager.js'
 import { HapticManager } from './HapticManager.js'
 import { OrganicTicks } from './OrganicTicks.js'
 import { LivingCore } from './LivingCore.js'
+import { IdleAgency } from './IdleAgency.js'
 
 /**
  * Main application entry point
@@ -166,6 +167,10 @@ class App {
         this.organicTicks = new OrganicTicks(this.sphere, this.particleSystem, this.eye)
         this.organicTicks.setInputManager(this.inputManager)
 
+        // Initialize idle agency (autonomous behavior when user is inactive)
+        this.idleAgency = new IdleAgency(this.sphere, this.organicTicks, this.eye, this.particleSystem)
+        this.idleAgency.setInputManager(this.inputManager)
+
         // Start haptic heartbeat (continuous pulse tied to emotional state)
         this.hapticManager.startHeartbeat('peace')
     }
@@ -239,6 +244,14 @@ class App {
             // Sync eye rotation with sphere rolling
             this.eye.setSphereRotation(this.particleSystem.mesh.rotation)
             this.eye.update(delta, elapsed)
+
+            // ═══════════════════════════════════════════════════════════
+            // IDLE AGENCY: Autonomous behavior when user is inactive
+            // "She doesn't just wait — she wonders, fidgets, beckons"
+            // ═══════════════════════════════════════════════════════════
+            if (this.idleAgency) {
+                this.idleAgency.update(delta, elapsed)
+            }
 
             // ═══════════════════════════════════════════════════════════
             // ORGANIC TICKS: Autonomous micro-movements when idle

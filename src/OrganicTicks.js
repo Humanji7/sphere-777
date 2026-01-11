@@ -43,6 +43,30 @@ export class OrganicTicks {
             shiver: { min: 0.5, max: 0.8 },
             glance: { min: 0.3, max: 0.5 }
         }
+
+        // IdleAgency mood integration
+        this.idleMood = 'calm'
+        this.moodMultipliers = {
+            calm: 1.0,
+            curious: 1.5,      // 1.5x faster ticks
+            restless: 2.0,     // 2x faster ticks
+            'attention-seeking': 2.5
+        }
+    }
+
+    /**
+     * Set idle mood from IdleAgency (affects tick frequency)
+     * @param {string} mood - calm | curious | restless | attention-seeking
+     */
+    setIdleMood(mood) {
+        if (this.idleMood !== mood) {
+            this.idleMood = mood
+
+            // Force shiver in attention-seeking mode
+            if (mood === 'attention-seeking' && !this.activeTick) {
+                this.timers.shiver = Math.min(this.timers.shiver, 3 + Math.random() * 2)
+            }
+        }
     }
 
     /**
@@ -98,9 +122,12 @@ export class OrganicTicks {
 
         // ═══════════════════════════════════════════════════════════
         // TIMER COUNTDOWN: Check for tick triggers
+        // Apply mood multiplier for faster ticks when curious/restless
         // ═══════════════════════════════════════════════════════════
+        const moodMult = this.moodMultipliers[this.idleMood] || 1.0
+
         for (const tickType of ['twitch', 'stretch', 'shiver', 'glance']) {
-            this.timers[tickType] -= delta
+            this.timers[tickType] -= delta * moodMult
 
             if (this.timers[tickType] <= 0) {
                 this._triggerTick(tickType)
