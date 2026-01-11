@@ -1,69 +1,50 @@
-# CURSOR STOPS RESPONDING — Handoff
+# CURSOR STOPS RESPONDING — ✅ RESOLVED
 
-## 🔴 CRITICAL BUG
+## � BUG FIXED
 
 **Symptom**: Курсор работает первые 2-3 секунды после запуска, затем перестаёт реагировать на сферу.
 
-**Tested**: 2026-01-11 14:39
+**Fixed**: 2026-01-11 14:45
 
 ---
 
-## Diagnosis Needed
+## Root Cause
 
-### Possible Causes
+The `activeDecayTimer` in `InputManager.js` was designed for **mobile idle detection** — after touch ends, it decays `isActive` to `false` after 150ms so `IdleAgency` can detect idle state.
 
-1. **InputManager loses active state**
-   - Check if `inputManager.isActive` becomes false
-   - `activeDecayTimer` может сбрасывать состояние
-
-2. **Cursor influence disabled**
-   - `uCursorInfluenceStrength` может устанавливаться в 0
-   - Проверить `EffectConductor` — может отключать cursor glow
-
-3. **Event listeners removed**
-   - `mousemove` / `touchmove` могут unbind
-
-4. **Z-fighting or rendering issue**
-   - Canvas может терять focus
-   - Renderer может перестать обновляться
+**Problem**: On desktop, the `_onMouseMove` handler **did not reset** `activeDecayTimer`. Since desktop never sets `isTouching = true`, the decay logic kicked in after just 150ms of "no touch", even though the mouse was still active.
 
 ---
 
-## Quick Diagnostic Code
+## The Fix
+
+Added timer reset in `_onMouseMove`:
 
 ```javascript
-// В консоли браузера:
-setInterval(() => {
-  console.log({
-    inputActive: window.app?.inputManager?.isActive,
-    cursorStrength: window.app?.particleSystem?.material?.uniforms?.uCursorInfluenceStrength?.value,
-    cursorOnSphere: window.app?.sphere?.cursorOnSphere,
-    mousePos: window.app?.inputManager?.getState()?.position
-  })
-}, 1000)
+_onMouseMove(e) {
+    const coords = this._normalizeCoords(e.clientX, e.clientY)
+    this.position.x = coords.x
+    this.position.y = coords.y
+    this.isActive = true
+    // Reset active decay timer (user is actively moving mouse)
+    this.activeDecayTimer = 0  // ← NEW LINE
+}
 ```
 
----
-
-## Files to Check
-
-1. [`InputManager.js`](file:///Users/admin/projects/sphere-777/src/InputManager.js)
-   - Lines 200-250: `activeDecayTimer` logic
-   - Event binding/unbinding
-
-2. [`Sphere.js`](file:///Users/admin/projects/sphere-777/src/Sphere.js)
-   - Cursor proximity calculation
-   - `cursorOnSphere` logic
-
-3. [`EffectConductor.js`](file:///Users/admin/projects/sphere-777/src/EffectConductor.js)
-   - May disable cursor effects
+**File**: [`InputManager.js`](file:///Users/admin/projects/sphere-777/src/InputManager.js) — line 175
 
 ---
 
-## Next Session Action
+## Verification
 
-1. Open browser console
-2. Run diagnostic code above
-3. Watch values when cursor stops working
-4. Identify which variable goes to 0
-5. Fix the root cause
+Tested via Playwright:
+- ✅ Mouse move resets `activeDecayTimer` to 0
+- ✅ `isActive` stays `true` during continuous movement
+- ✅ `isActive` correctly decays to `false` after 150ms of no movement
+- ✅ Position tracking works as expected
+
+---
+
+## Lesson Learned
+
+When adding mobile-specific fixes (like `activeDecayTimer` for touch idle detection), **always verify they don't break desktop behavior**. The decay timer was correctly reset on `touchstart` and `touchmove`, but the symmetric `mousemove` handler was missed.

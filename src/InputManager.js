@@ -170,6 +170,8 @@ export class InputManager {
         this.position.x = coords.x
         this.position.y = coords.y
         this.isActive = true
+        // Reset active decay timer (user is actively moving mouse)
+        this.activeDecayTimer = 0
     }
 
     _onMouseDown(e) {
