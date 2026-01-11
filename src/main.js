@@ -19,6 +19,7 @@ import { LivingCore } from './LivingCore.js'
 import { IdleAgency } from './IdleAgency.js'
 import { TransformationManager } from './TransformationManager.js'
 import { BeetleShell } from './shells/BeetleShell.js'
+import { CharacterPanel } from './CharacterPanel.js'
 
 /**
  * Main application entry point
@@ -127,6 +128,9 @@ class App {
         // Memory Manager (emotional memory / trust system)
         this.memoryManager = new MemoryManager()
         this.sphere.setMemoryManager(this.memoryManager)
+
+        // Character Panel (v3: swipe up to see stats)
+        this.characterPanel = new CharacterPanel(this.memoryManager)
 
         // Effect Conductor ("Living Chaos" system)
         this.effectConductor = new EffectConductor()

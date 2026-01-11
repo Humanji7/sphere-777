@@ -247,8 +247,9 @@ export class Sphere {
         // Update memory with current emotional state
         if (this.memory) {
             this.memory.update(delta, this.currentPhase, inputState)
-            // v3: Record gesture for user profile
+            // v3: Record gesture and phase for user profile
             this.memory.recordGesture(inputState.gestureType, delta)
+            this.memory.recordPhase(this.currentPhase, delta)
 
             // Set trace positions in LOCAL/ORIGINAL space (match shader's aOriginalPos)
             // The shader compares trace positions against particle original positions,

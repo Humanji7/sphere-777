@@ -26,6 +26,9 @@ const STORAGE_KEY_PROFILE = 'sphere_user_profile'
 // All gesture types in the system
 const GESTURE_TYPES = ['idle', 'tap', 'flick', 'poke', 'spiral', 'hesitation', 'orbit', 'tremble', 'stroke', 'moving']
 
+// All emotional phases in the system
+const PHASE_TYPES = ['peace', 'listening', 'tension', 'bleeding', 'trauma', 'healing']
+
 export class MemoryManager {
     constructor() {
         // Trust index: 0 = full distrust, 1 = full trust
@@ -39,6 +42,7 @@ export class MemoryManager {
 
         // Track current session gestures (will be saved on unload)
         this.currentSessionGestures = this._createEmptyGestureStats()
+        this.currentSessionPhases = this._createEmptyPhaseStats()
         this.sessionStartTime = Date.now()
 
         // Session event log (for debugging/analytics)
@@ -514,6 +518,16 @@ export class MemoryManager {
     }
 
     /**
+     * Create empty phase stats object
+     * @private
+     */
+    _createEmptyPhaseStats() {
+        const stats = {}
+        PHASE_TYPES.forEach(type => stats[type] = 0)
+        return stats
+    }
+
+    /**
      * Load user profile from localStorage
      * @returns {Object} User profile with session history and gesture totals
      * @private
@@ -526,12 +540,14 @@ export class MemoryManager {
             totalTime: 0,
             // Total gesture counts (all-time)
             gestureTotals: this._createEmptyGestureStats(),
+            // Total time in each phase (all-time, seconds)
+            phaseTotals: this._createEmptyPhaseStats(),
             // Session history (last 7 days detailed, then weekly aggregates)
             sessions: [],
             // First ever visit
             firstVisit: null,
             // Profile version for future migrations
-            version: 1
+            version: 2
         }
 
         if (typeof window === 'undefined' || !window.localStorage) {
@@ -578,6 +594,18 @@ export class MemoryManager {
 
         // Accumulate time spent in this gesture (in seconds)
         this.currentSessionGestures[gestureType] += delta
+    }
+
+    /**
+     * Record time in emotional phase (called every frame)
+     * @param {string} phase - Current emotional phase
+     * @param {number} delta - Frame delta time (seconds)
+     */
+    recordPhase(phase, delta) {
+        if (!PHASE_TYPES.includes(phase)) return
+
+        // Accumulate time spent in this phase (in seconds)
+        this.currentSessionPhases[phase] += delta
     }
 
     /**
@@ -645,6 +673,61 @@ export class MemoryManager {
     }
 
     /**
+     * Get emotional phase distribution (normalized)
+     * @returns {Object} {dominant: string, distribution: {phase: 0-1}, totals: {phase: seconds}}
+     */
+    getPhaseDistribution() {
+        const totals = this.userProfile.phaseTotals || this._createEmptyPhaseStats()
+        const sum = Object.values(totals).reduce((a, b) => a + b, 0)
+
+        if (sum === 0) {
+            return { dominant: 'peace', distribution: {}, totals }
+        }
+
+        const distribution = {}
+        let dominant = 'peace'
+        let maxValue = 0
+
+        PHASE_TYPES.forEach(phase => {
+            const value = totals[phase] || 0
+            distribution[phase] = value / sum
+            if (value > maxValue) {
+                maxValue = value
+                dominant = phase
+            }
+        })
+
+        return { dominant, distribution, totals }
+    }
+
+    /**
+     * Get complete character stats for UI
+     * @returns {Object} All stats needed for character panel
+     */
+    getCharacterStats() {
+        const { totalTime, firstVisit } = this.userProfile
+        const gestureProfile = this.getGestureProfile()
+        const phaseDistribution = this.getPhaseDistribution()
+        const sessionCount = this.userProfile.sessions.length
+
+        return {
+            // Time
+            totalTime,
+            firstVisit,
+            sessionCount,
+            // Trust
+            trustIndex: this.trustIndex,
+            // Gestures
+            dominantGesture: gestureProfile.dominant,
+            gestureDistribution: gestureProfile.distribution,
+            // Emotions
+            dominantPhase: phaseDistribution.dominant,
+            phaseDistribution: phaseDistribution.distribution,
+            phaseTotals: phaseDistribution.totals
+        }
+    }
+
+    /**
      * End current session and save to history
      * Called on page unload or manually
      */
@@ -655,17 +738,27 @@ export class MemoryManager {
         // Only save if session was meaningful (> 5 seconds)
         if (duration < 5) return
 
-        // Update totals
+        // Update gesture totals
         GESTURE_TYPES.forEach(type => {
             this.userProfile.gestureTotals[type] += this.currentSessionGestures[type]
         })
+
+        // Update phase totals
+        PHASE_TYPES.forEach(type => {
+            if (!this.userProfile.phaseTotals[type]) {
+                this.userProfile.phaseTotals[type] = 0
+            }
+            this.userProfile.phaseTotals[type] += this.currentSessionPhases[type]
+        })
+
         this.userProfile.totalTime += duration
 
         // Add to session history
         this.userProfile.sessions.push({
             ts: this.sessionStartTime,
             duration,
-            gestures: { ...this.currentSessionGestures }
+            gestures: { ...this.currentSessionGestures },
+            phases: { ...this.currentSessionPhases }
         })
 
         // Aggregate old sessions (keep last 7 days detailed)

@@ -71,3 +71,200 @@ body {
     opacity: 1;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   CHARACTER PANEL (v3)
+   ═══════════════════════════════════════════════════════════ */
+
+#character-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(20, 10, 30, 0.95);
+  border-radius: 20px 20px 0 0;
+  transform: translateY(100%);
+  transition: transform 0.3s ease-out;
+  z-index: 100;
+  max-height: 70vh;
+  overflow-y: auto;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+#character-panel.visible {
+  transform: translateY(0);
+}
+
+#character-panel.hidden {
+  transform: translateY(100%);
+}
+
+.panel-handle {
+  width: 40px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  margin: 12px auto;
+  cursor: grab;
+}
+
+.panel-content {
+  padding: 0 20px 30px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.panel-title {
+  color: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.panel-time {
+  color: rgba(255, 255, 255, 0.5);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.9rem;
+}
+
+.panel-section {
+  margin-bottom: 20px;
+}
+
+.section-title {
+  color: rgba(255, 255, 255, 0.6);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 10px;
+}
+
+/* Phase bars */
+.phase-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.phase-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.phase-label {
+  width: 80px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.8rem;
+}
+
+.phase-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.phase-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease-out;
+}
+
+.phase-fill.peace { background: linear-gradient(90deg, #4a9eff, #7eb8ff); }
+.phase-fill.listening { background: linear-gradient(90deg, #9b59b6, #c39bd3); }
+.phase-fill.tension { background: linear-gradient(90deg, #f39c12, #f5b041); }
+.phase-fill.bleeding { background: linear-gradient(90deg, #e74c3c, #ec7063); }
+.phase-fill.trauma { background: linear-gradient(90deg, #8b0000, #b22222); }
+.phase-fill.healing { background: linear-gradient(90deg, #2ecc71, #58d68d); }
+
+.phase-value {
+  width: 40px;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.75rem;
+}
+
+/* Trust bar */
+.trust-bar {
+  position: relative;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.trust-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+  border-radius: 6px;
+  transition: width 0.5s ease-out;
+}
+
+.trust-value {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* Gesture stats */
+.gesture-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gesture-tag {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 6px 12px;
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.75rem;
+}
+
+.gesture-tag.dominant {
+  background: rgba(139, 92, 246, 0.3);
+  color: #a78bfa;
+}
+
+/* Swipe hint */
+#swipe-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  opacity: 0.5;
+  transition: opacity 0.3s;
+}
+
+#swipe-hint.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hint-line {
+  width: 40px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
