@@ -1,8 +1,9 @@
 # Transformation States — Handoff
 
-## Status: ✅ Phase 1 DONE (BeetleShell)
+## Status: ⚠️ RETHINKING APPROACH
 
-> **Tested**: 2026-01-11 — Transformation and return-to-organic working.
+> **Issue**: Procedural BeetleShell broke cursor (cursor only interacts with particles).
+> **Solution**: Need real 3D GLB model from Blender, not shader-based geometry.
 
 ## Одобренные Решения
 
