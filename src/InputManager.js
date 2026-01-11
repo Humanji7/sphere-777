@@ -133,6 +133,9 @@ export class InputManager {
         this.orbitShrinkRate = 0
         this.isSpiraling = false
 
+        // Active state decay (for mobile idle detection)
+        this.activeDecayTimer = 0
+
         this._bindEvents()
     }
 
@@ -231,6 +234,9 @@ export class InputManager {
         this._startHold(coords)
         this._startContact()
 
+        // Reset active decay timer (user is actively touching)
+        this.activeDecayTimer = 0
+
         // Capture touch radius/pressure
         this._updateTouchMetrics(touch)
     }
@@ -244,6 +250,9 @@ export class InputManager {
         const coords = this._normalizeCoords(touch.clientX, touch.clientY)
         this.position.x = coords.x
         this.position.y = coords.y
+
+        // Reset active decay timer (user is actively touching)
+        this.activeDecayTimer = 0
 
         // Update touch radius/pressure
         this._updateTouchMetrics(touch)
@@ -276,7 +285,7 @@ export class InputManager {
         this.touchRadius = 0
         this.touchPressure = 0
         this.touchIntensity = 0
-        // Keep isActive true for a bit after touch ends
+        // isActive will decay to false via activeDecayTimer in update()
     }
 
     update(delta) {
@@ -308,6 +317,20 @@ export class InputManager {
         } else {
             this.idleTime = 0
             this.franticTime = 0
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // ACTIVE STATE DECAY (mobile idle detection fix)
+        // After touch ends, decay isActive to false after 150ms
+        // This allows IdleAgency to detect idle state on mobile
+        // ═══════════════════════════════════════════════════════════
+        if (!this.isTouching && this.isActive) {
+            this.activeDecayTimer += delta
+            if (this.activeDecayTimer > 0.15) {  // 150ms delay
+                this.isActive = false
+            }
+        } else if (this.isTouching) {
+            this.activeDecayTimer = 0
         }
 
         // ═══════════════════════════════════════════════════════════
