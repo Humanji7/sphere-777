@@ -197,7 +197,7 @@ export class BeetleShell extends BaseShell {
                 uOrganicNoiseScale: { value: 3.0 },
                 // Cursor interaction uniforms
                 uCursorWorldPos: { value: new THREE.Vector3(0, 0, 10) },
-                uCursorInfluenceRadius: { value: 0.8 },
+                uCursorInfluenceRadius: { value: 1.5 },  // Larger radius for visible effect
                 uCursorInfluenceStrength: { value: 0.0 }
             },
             vertexShader: `
@@ -410,11 +410,11 @@ export class BeetleShell extends BaseShell {
             // Warm amber-orange glow (different from sphere's pink-white)
             vec3 cursorGlowColor = vec3(1.0, 0.65, 0.25);
             
-            // Add glow to color (additive blend)
-            baseColor += cursorGlowColor * glowAmount * 0.5;
+            // Add glow to color (boosted additive blend for visibility)
+            baseColor += cursorGlowColor * glowAmount * 1.2;
             
             // Also boost seam glow near cursor for extra effect
-            baseColor += uSeamGlowColor * glowAmount * 0.3;
+            baseColor += uSeamGlowColor * glowAmount * 0.5;
           }
           
           // === OVERALL PULSING ===
