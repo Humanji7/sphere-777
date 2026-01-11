@@ -6,14 +6,17 @@
  * 
  * Philosophy: Sound is not a reaction. Sound is the sphere's continuous presence made audible.
  * 
- * Architecture (7 Layers):
- *   L1: Spectral Body - 32 harmonics, additive synthesis
+ * Architecture (11 Layers):
+ *   L1: Spectral Body - 32 harmonics @ 165Hz
+ *   L1.5: Breath Noise - Async filtered white noise
  *   L2: Pulse Network - 5 polyrhythmic LFOs
- *   L3: Granular Membrane - Touch texture (future)
- *   L4: Formant Voice - Vowel-like presence (future)
- *   L5: Spatial Field - 3D audio (future)
+ *   L3: Granular Membrane - Touch texture
+ *   L4: Formant Voice - Vowel-like presence + micro-vibrato
+ *   L5: Spatial Field - HRTF 3D audio
  *   L6: Memory Resonance - Evolving state (future)
  *   L7: Genre Morphing - Style crossfade (future)
+ *   L10: Sub-Bass - 82.5Hz warmth foundation
+ *   L11: Reverb - Delay-based room simulation
  */
 
 export class SonicOrganism {
@@ -39,10 +42,12 @@ export class SonicOrganism {
         // 🔬 Layer Isolation for debugging "bee buzz" issue
         // Set any to false to disable that layer and isolate the problem
         this.layerEnabled = {
-            spectral: true,      // L1: 32 harmonics @ 110Hz + detune
+            spectral: true,      // L1: 32 harmonics @ 165Hz + detune
             breathNoise: true,   // L1.5: White noise with async envelope
             formantVoice: true,  // L4: Vowel filters + vibrato
-            spatial: true        // L5: HRTF panner
+            spatial: true,       // L5: HRTF panner
+            subBass: true,       // L10: 82.5Hz warmth foundation
+            reverb: true         // L11: Delay-based room simulation
         }
 
         // Granular membrane state (L3)
@@ -56,6 +61,8 @@ export class SonicOrganism {
         this._initBreathNoise()        // L1.5: Breath texture layer
         this._initSpatialField()       // L5: 3D audio positioning
         this._initFormantVoice()       // L4: Vowel presence layer
+        this._initSubBass()            // L10: Warmth foundation
+        this._initReverb()             // L11: Room simulation
 
         // Resume context if suspended
         if (this.audioContext.state === 'suspended') {
@@ -650,6 +657,64 @@ export class SonicOrganism {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // LAYER 10: SUB-BASS — Warmth Foundation (82.5Hz sine)
+    // Octave below 165Hz fundamental, direct to master (non-directional)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    _initSubBass() {
+        this.subBassOsc = this.audioContext.createOscillator()
+        this.subBassOsc.type = 'sine'
+        this.subBassOsc.frequency.value = 82.5  // Octave below 165Hz
+
+        this.subBassGain = this.audioContext.createGain()
+        this.subBassGain.gain.value = 0.18  // -15dB
+
+        // Direct to master, bypasses spatialPanner (sub-bass is non-directional)
+        this.subBassOsc.connect(this.subBassGain)
+        this.subBassGain.connect(this.masterGain)
+
+        this.subBassOsc.start(this.audioContext.currentTime)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // LAYER 11: REVERB — Delay-Based Room Simulation
+    // Parallel send from spatialPanner, stereo delay with feedback
+    // ═══════════════════════════════════════════════════════════════════════
+
+    _initReverb() {
+        // Pre-delay (20ms)
+        this.reverbPreDelay = this.audioContext.createDelay(0.1)
+        this.reverbPreDelay.delayTime.value = 0.02
+
+        // Main delay (80ms early reflections)
+        this.reverbDelay = this.audioContext.createDelay(0.5)
+        this.reverbDelay.delayTime.value = 0.08
+
+        // Feedback loop (0.3 for short tail)
+        this.reverbFeedback = this.audioContext.createGain()
+        this.reverbFeedback.gain.value = 0.3
+
+        // High-cut filter (remove mud at 2kHz)
+        this.reverbFilter = this.audioContext.createBiquadFilter()
+        this.reverbFilter.type = 'lowpass'
+        this.reverbFilter.frequency.value = 2000
+
+        // Wet output (15%)
+        this.reverbWet = this.audioContext.createGain()
+        this.reverbWet.gain.value = 0.15
+
+        // Connect chain: spatialPanner → preDelay → delay → filter → feedback → delay (loop)
+        //                                                      └→ wet → master
+        this.spatialPanner.connect(this.reverbPreDelay)
+        this.reverbPreDelay.connect(this.reverbDelay)
+        this.reverbDelay.connect(this.reverbFilter)
+        this.reverbFilter.connect(this.reverbFeedback)
+        this.reverbFeedback.connect(this.reverbDelay)  // Feedback loop
+        this.reverbFilter.connect(this.reverbWet)
+        this.reverbWet.connect(this.masterGain)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // UPDATE LOOP — Called every frame from main.js
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -934,6 +999,22 @@ export class SonicOrganism {
             this.formantFilters.forEach(f => f.disconnect())
             this.formantGains?.forEach(g => g.disconnect())
             this.formantMasterGain?.disconnect()
+        }
+
+        // Disconnect sub-bass (L10)
+        if (this.subBassOsc) {
+            this.subBassOsc.stop()
+            this.subBassOsc.disconnect()
+            this.subBassGain?.disconnect()
+        }
+
+        // Disconnect reverb (L11)
+        if (this.reverbPreDelay) {
+            this.reverbPreDelay.disconnect()
+            this.reverbDelay?.disconnect()
+            this.reverbFeedback?.disconnect()
+            this.reverbFilter?.disconnect()
+            this.reverbWet?.disconnect()
         }
 
         this.spectralGain.disconnect()

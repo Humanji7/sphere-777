@@ -1,6 +1,31 @@
 # HANDOFF: Sound System Tuning — Session 2
-**Дата:** 2026-01-11 23:31  
-**Статус:** 🟡 Требуется дотюнинг
+**Дата:** 2026-01-12 01:17  
+**Статус:** ✅ Завершено
+
+---
+
+## ✅ Что сделано (Session 2)
+
+### Phase C: Sub-Bass + Reverb (только что)
+- ✅ **L10 Sub-Bass** — 82.5Hz sine @ -15dB (octave below 165Hz fundamental)
+  - Direct to master (non-directional, bypasses HRTF panner)
+- ✅ **L11 Reverb** — Delay-based room simulation
+  - Pre-delay: 20ms
+  - Delay time: 80ms (early reflections)
+  - Feedback: 0.3 (short tail)
+  - High-cut: 2kHz (no mud)
+  - Wet/Dry: 15%
+
+### Архитектура L1→L11:
+```
+L1  Spectral Body ────► spatialPanner ─┬─► masterGain ─► destination
+                                       │
+                                       └─► reverb chain ─► masterGain
+                                       
+L1.5 Breath Noise ─────────────────────────► masterGain
+
+L10 Sub-Bass (82.5Hz) ─────────────────────► masterGain
+```
 
 ---
 
