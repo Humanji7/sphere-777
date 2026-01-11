@@ -30,10 +30,10 @@ export class TransformationManager {
         this.idleTime = 0
         this.elapsedTime = 0
         this.lastTransformTime = 0
-        this.minInterval = 45   // seconds
-        this.maxInterval = 180  // seconds
+        this.minInterval = 90   // seconds (was 45)
+        this.maxInterval = 300  // seconds (was 180)
         this.nextTriggerTime = this._randomInterval()
-        this.idleTriggerThreshold = 30  // seconds in attention-seeking
+        this.idleTriggerThreshold = 45  // seconds in attention-seeking (was 30)
 
         // Callbacks
         this.onTransitionStart = null
