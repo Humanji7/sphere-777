@@ -31,7 +31,7 @@ export class BeetleShell extends BaseShell {
             seamGlowColor: 0x2a4a3a, // Sickly green seams
             pulseSpeed: 0.3,         // Slow disturbing pulse
             seamGlow: 0.5,           // Glow intensity in seams
-            modelPath: '/assets/models/beetle_shell.glb',
+            modelPath: '/assets/models/beetle_shell_optimized.glb',
             targetSize: 3.0          // Target diameter in world units
         }
 
