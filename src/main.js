@@ -17,6 +17,8 @@ import { HapticManager } from './HapticManager.js'
 import { OrganicTicks } from './OrganicTicks.js'
 import { LivingCore } from './LivingCore.js'
 import { IdleAgency } from './IdleAgency.js'
+import { TransformationManager } from './TransformationManager.js'
+import { BeetleShell } from './shells/BeetleShell.js'
 
 /**
  * Main application entry point
@@ -132,6 +134,16 @@ class App {
         // Living Core (inner glow layers — heartbeat, pulse, outer glow)
         this.livingCore = new LivingCore(this.particleSystem.baseRadius)
         this.scene.add(this.livingCore.getMesh())
+
+        // Transformation Manager (Eerie shell states)
+        this.transformManager = new TransformationManager(
+            this.scene,
+            this.particleSystem,
+            this.camera
+        )
+        // Register BeetleShell (first implementation)
+        this.transformManager.registerShell('beetle', new BeetleShell(this.scene))
+        // this.transformManager.DEBUG = true  // Uncomment for debug logging
     }
 
     _bindEvents() {
@@ -262,6 +274,15 @@ class App {
             }
 
             // ═══════════════════════════════════════════════════════════
+            // TRANSFORMATION MANAGER: Eerie shell states
+            // "She becomes something else. Briefly. Disturbingly."
+            // ═══════════════════════════════════════════════════════════
+            if (this.transformManager) {
+                const idleMood = this.idleAgency?.getMood?.() || null
+                this.transformManager.update(delta, elapsed, idleMood)
+            }
+
+            // ═══════════════════════════════════════════════════════════
             // HAPTIC HEARTBEAT: Continuous pulse synchronized with sphere
             // "You feel her pulse through the screen"
             // ═══════════════════════════════════════════════════════════
@@ -342,3 +363,19 @@ class App {
 
 // Start app
 window.app = new App()
+
+// Debug commands for TransformationManager
+window.triggerTransform = (state = 'beetle') => {
+    if (window.app.transformManager) {
+        window.app.transformManager.forceTransform(state)
+        console.log(`[DEBUG] Triggering transform to: ${state}`)
+    } else {
+        console.warn('[DEBUG] TransformationManager not initialized')
+    }
+}
+window.returnToOrganic = () => {
+    if (window.app.transformManager) {
+        window.app.transformManager.returnToOrganic()
+        console.log('[DEBUG] Returning to organic')
+    }
+}

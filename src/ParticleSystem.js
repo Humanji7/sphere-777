@@ -697,6 +697,8 @@ export class ParticleSystem {
         uniform float uSphereRadius;        // Sphere radius for normalization
         // Sensitivity Zones
         uniform float uSensitivityWarmth;   // Warm color shift for sensitive zones
+        // Transformation
+        uniform float uTransformFade;       // 1.0 = visible, 0 = hidden during shell transition
         
         varying float vType;
         varying float vSeed;
@@ -876,6 +878,9 @@ export class ParticleSystem {
             color *= 1.0 + warmthFactor * 0.3;
           }
           
+          // TRANSFORMATION FADE: particles fade during shell transitions
+          alpha *= uTransformFade;
+          
           gl_FragColor = vec4(color, alpha);
         }
     `
@@ -939,7 +944,9 @@ export class ParticleSystem {
         // Sensitivity Zones
         uSensitivityDrift: { value: new THREE.Vector3(0, 0, 0) },
         uSensitivityContrast: { value: 1.0 },
-        uSensitivityWarmth: { value: 0.2 }
+        uSensitivityWarmth: { value: 0.2 },
+        // Transformation fade (shells)
+        uTransformFade: { value: 1.0 }  // 1.0 = visible, 0 = hidden
       },
       vertexShader: this._generateVertexShader(),
       fragmentShader: this._generateFragmentShader(),
@@ -1329,6 +1336,14 @@ export class ParticleSystem {
    */
   setOsmosisDepth(depth) {
     this.material.uniforms.uOsmosisDepth.value = Math.max(0, Math.min(1, depth))
+  }
+
+  /**
+   * Set transformation fade for shell transitions
+   * @param {number} fade - 1.0 (visible) to 0 (hidden during shell)
+   */
+  setTransformFade(fade) {
+    this.material.uniforms.uTransformFade.value = Math.max(0, Math.min(1, fade))
   }
 
   /**
