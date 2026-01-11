@@ -204,6 +204,12 @@ export class Sphere {
      */
     setMemoryManager(memoryManager) {
         this.memory = memoryManager
+
+        // v3: Check return gap and prepare reaction
+        if (memoryManager) {
+            const { gap, level } = memoryManager.getReturnGap()
+            this.returnReaction = { gap, level, processed: false }
+        }
     }
 
     /**
@@ -241,6 +247,8 @@ export class Sphere {
         // Update memory with current emotional state
         if (this.memory) {
             this.memory.update(delta, this.currentPhase, inputState)
+            // v3: Record gesture for user profile
+            this.memory.recordGesture(inputState.gestureType, delta)
 
             // Set trace positions in LOCAL/ORIGINAL space (match shader's aOriginalPos)
             // The shader compares trace positions against particle original positions,
@@ -257,6 +265,9 @@ export class Sphere {
                 this.memory.setLatestWarmTracePosition(localPos)
             }
         }
+
+        // v3: Process return reaction (once per session)
+        this._processReturnReaction(elapsed)
 
         // ═══════════════════════════════════════════════════════════
         // OSMOSIS: Continuous Hold Gradient — "bidirectional membrane exchange"
@@ -1454,6 +1465,96 @@ export class Sphere {
 
     setDebug(enabled) {
         this.DEBUG = enabled
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // v3: RETURN REACTION — "she remembers you"
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Process return reaction based on time since last visit
+     * Called once per session, triggers special greeting behavior
+     * @param {number} elapsed - Current elapsed time
+     * @private
+     */
+    _processReturnReaction(elapsed) {
+        if (!this.returnReaction || this.returnReaction.processed) return
+
+        // Wait a moment before reacting (0.5s delay for natural feel)
+        if (elapsed < 0.5) return
+
+        const { level } = this.returnReaction
+        this.returnReaction.processed = true
+
+        // Different reactions based on absence duration
+        switch (level) {
+            case 'first':
+                // First visit: subtle curiosity
+                this._triggerReturnEffect('curious', 0.3)
+                break
+
+            case 'short':
+                // < 1 hour: brief acknowledgment
+                this._triggerReturnEffect('acknowledge', 0.2)
+                break
+
+            case 'medium':
+                // 1 hour - 1 day: happy to see you
+                this._triggerReturnEffect('happy', 0.5)
+                break
+
+            case 'long':
+                // 1 day - 1 week: very happy, missed you
+                this._triggerReturnEffect('excited', 0.7)
+                break
+
+            case 'very_long':
+                // > 1 week: special reunion
+                this._triggerReturnEffect('reunion', 1.0)
+                break
+        }
+    }
+
+    /**
+     * Trigger visual/audio effect for return reaction
+     * @param {string} type - Effect type
+     * @param {number} intensity - Effect intensity (0-1)
+     * @private
+     */
+    _triggerReturnEffect(type, intensity) {
+        // Visual: pulse the inner glow
+        if (this.particles) {
+            // Brief size pulse
+            this.particles.setPulse(intensity * 0.2)
+
+            // Schedule pulse decay
+            setTimeout(() => {
+                this.particles.setPulse(0)
+            }, 800)
+        }
+
+        // LivingCore: warm flash
+        if (this.livingCore) {
+            const flashIntensity = 0.3 + intensity * 0.5
+            this.livingCore.triggerFlash(flashIntensity)
+        }
+
+        // Haptic: gentle greeting
+        if (this.haptic && intensity > 0.3) {
+            this.haptic.softTouch()
+        }
+
+        // Sound: greeting tone (will be expanded in 3.5)
+        if (this.soundManager && intensity > 0.4) {
+            // Use existing sound system for now
+            // Will be replaced with procedural greeting in v3.5
+        }
+
+        // Eye: brief attention
+        if (this.eye && intensity > 0.3) {
+            // Look toward camera briefly
+            this.eye.unlockGaze()
+        }
     }
 
     dispose() {

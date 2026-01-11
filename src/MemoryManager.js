@@ -19,14 +19,27 @@
 
 import * as THREE from 'three'
 
-// localStorage key for persistence
+// localStorage keys for persistence
 const STORAGE_KEY = 'sphere_trust_index'
+const STORAGE_KEY_PROFILE = 'sphere_user_profile'
+
+// All gesture types in the system
+const GESTURE_TYPES = ['idle', 'tap', 'flick', 'poke', 'spiral', 'hesitation', 'orbit', 'tremble', 'stroke', 'moving']
 
 export class MemoryManager {
     constructor() {
         // Trust index: 0 = full distrust, 1 = full trust
         // Load from localStorage if available, otherwise start neutral
         this.trustIndex = this._loadTrust()
+
+        // ═══════════════════════════════════════════════════════════
+        // USER PROFILE (v3: "learns with you")
+        // ═══════════════════════════════════════════════════════════
+        this.userProfile = this._loadUserProfile()
+
+        // Track current session gestures (will be saved on unload)
+        this.currentSessionGestures = this._createEmptyGestureStats()
+        this.sessionStartTime = Date.now()
 
         // Session event log (for debugging/analytics)
         this.sessionLog = []
@@ -466,11 +479,12 @@ export class MemoryManager {
     }
 
     /**
-     * Handle page unload - save trust immediately
+     * Handle page unload - save trust and session immediately
      * @private
      */
     _onUnload() {
         this._saveTrust()
+        this.endSession()
     }
 
     /**
@@ -482,6 +496,235 @@ export class MemoryManager {
         }
         // Final save on dispose
         this._saveTrust()
+        this.endSession()
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // USER PROFILE API (v3)
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Create empty gesture stats object
+     * @private
+     */
+    _createEmptyGestureStats() {
+        const stats = {}
+        GESTURE_TYPES.forEach(type => stats[type] = 0)
+        return stats
+    }
+
+    /**
+     * Load user profile from localStorage
+     * @returns {Object} User profile with session history and gesture totals
+     * @private
+     */
+    _loadUserProfile() {
+        const defaultProfile = {
+            // Last visit timestamp (for return reaction)
+            lastVisit: null,
+            // Total time spent (seconds)
+            totalTime: 0,
+            // Total gesture counts (all-time)
+            gestureTotals: this._createEmptyGestureStats(),
+            // Session history (last 7 days detailed, then weekly aggregates)
+            sessions: [],
+            // First ever visit
+            firstVisit: null,
+            // Profile version for future migrations
+            version: 1
+        }
+
+        if (typeof window === 'undefined' || !window.localStorage) {
+            return defaultProfile
+        }
+
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY_PROFILE)
+            if (stored) {
+                const parsed = JSON.parse(stored)
+                // Merge with defaults in case of missing fields
+                return { ...defaultProfile, ...parsed }
+            }
+        } catch (e) {
+            // JSON parse error or localStorage access denied
+        }
+
+        return defaultProfile
+    }
+
+    /**
+     * Save user profile to localStorage
+     * @private
+     */
+    _saveUserProfile() {
+        if (typeof window === 'undefined' || !window.localStorage) {
+            return
+        }
+
+        try {
+            localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(this.userProfile))
+        } catch (e) {
+            // localStorage write denied or quota exceeded
+        }
+    }
+
+    /**
+     * Record a gesture occurrence (called every frame with current gesture)
+     * @param {string} gestureType - Current gesture type
+     * @param {number} delta - Frame delta time (seconds)
+     */
+    recordGesture(gestureType, delta) {
+        if (!GESTURE_TYPES.includes(gestureType)) return
+
+        // Accumulate time spent in this gesture (in seconds)
+        this.currentSessionGestures[gestureType] += delta
+    }
+
+    /**
+     * Get time since last visit
+     * @returns {Object} {gap: seconds, level: 'short'|'medium'|'long'|'very_long'|'first'}
+     */
+    getReturnGap() {
+        const { lastVisit, firstVisit } = this.userProfile
+
+        // First ever visit
+        if (!firstVisit) {
+            return { gap: 0, level: 'first' }
+        }
+
+        if (!lastVisit) {
+            return { gap: 0, level: 'first' }
+        }
+
+        const gap = (Date.now() - lastVisit) / 1000 // seconds
+
+        let level
+        if (gap < 3600) {          // < 1 hour
+            level = 'short'
+        } else if (gap < 86400) {  // < 1 day
+            level = 'medium'
+        } else if (gap < 604800) { // < 1 week
+            level = 'long'
+        } else {
+            level = 'very_long'
+        }
+
+        return { gap, level }
+    }
+
+    /**
+     * Get gesture profile (normalized distribution)
+     * @returns {Object} {dominant: string, distribution: {gesture: 0-1}}
+     */
+    getGestureProfile() {
+        const totals = this.userProfile.gestureTotals
+        const sum = Object.values(totals).reduce((a, b) => a + b, 0)
+
+        if (sum === 0) {
+            return { dominant: null, distribution: {} }
+        }
+
+        const distribution = {}
+        let dominant = null
+        let maxValue = 0
+
+        // Exclude 'idle' and 'moving' from personality calculation
+        const personalityGestures = ['tap', 'flick', 'poke', 'spiral', 'hesitation', 'orbit', 'tremble', 'stroke']
+        const personalitySum = personalityGestures.reduce((a, g) => a + (totals[g] || 0), 0)
+
+        personalityGestures.forEach(gesture => {
+            const value = totals[gesture] || 0
+            distribution[gesture] = personalitySum > 0 ? value / personalitySum : 0
+            if (value > maxValue) {
+                maxValue = value
+                dominant = gesture
+            }
+        })
+
+        return { dominant, distribution }
+    }
+
+    /**
+     * End current session and save to history
+     * Called on page unload or manually
+     */
+    endSession() {
+        const now = Date.now()
+        const duration = (now - this.sessionStartTime) / 1000 // seconds
+
+        // Only save if session was meaningful (> 5 seconds)
+        if (duration < 5) return
+
+        // Update totals
+        GESTURE_TYPES.forEach(type => {
+            this.userProfile.gestureTotals[type] += this.currentSessionGestures[type]
+        })
+        this.userProfile.totalTime += duration
+
+        // Add to session history
+        this.userProfile.sessions.push({
+            ts: this.sessionStartTime,
+            duration,
+            gestures: { ...this.currentSessionGestures }
+        })
+
+        // Aggregate old sessions (keep last 7 days detailed)
+        this._aggregateSessions()
+
+        // Update last visit
+        this.userProfile.lastVisit = now
+
+        // Set first visit if not set
+        if (!this.userProfile.firstVisit) {
+            this.userProfile.firstVisit = this.sessionStartTime
+        }
+
+        // Save
+        this._saveUserProfile()
+    }
+
+    /**
+     * Aggregate old sessions to save space
+     * Keep last 7 days detailed, compress older to weekly
+     * @private
+     */
+    _aggregateSessions() {
+        const now = Date.now()
+        const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000
+        const sessions = this.userProfile.sessions
+
+        // Split into recent and old
+        const recent = sessions.filter(s => s.ts > sevenDaysAgo)
+        const old = sessions.filter(s => s.ts <= sevenDaysAgo)
+
+        // If too many old sessions, aggregate them
+        if (old.length > 10) {
+            // Group by week
+            const weeks = {}
+            old.forEach(s => {
+                const weekStart = Math.floor(s.ts / (7 * 24 * 60 * 60 * 1000))
+                if (!weeks[weekStart]) {
+                    weeks[weekStart] = { duration: 0, count: 0 }
+                }
+                weeks[weekStart].duration += s.duration
+                weeks[weekStart].count += 1
+            })
+
+            // Convert to aggregated sessions
+            const aggregated = Object.entries(weeks).map(([weekStart, data]) => ({
+                ts: parseInt(weekStart) * 7 * 24 * 60 * 60 * 1000,
+                duration: data.duration,
+                aggregated: true,
+                sessionCount: data.count
+            }))
+
+            this.userProfile.sessions = [...aggregated, ...recent]
+        }
+
+        // Hard limit: keep max 50 sessions
+        if (this.userProfile.sessions.length > 50) {
+            this.userProfile.sessions = this.userProfile.sessions.slice(-50)
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
