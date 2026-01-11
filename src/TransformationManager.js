@@ -339,9 +339,12 @@ export class TransformationManager {
             // Stronger glow when actively touching, subtle glow on hover
             const glowIntensity = this.inputManager.isActive ? 0.9 : 0.5
             shell.setCursorInfluence?.(glowIntensity)
+            // Enable cursor-guided rotation — "shell turns to face the touch"
+            shell.setTargetRotationPoint?.(hit.point)
         } else {
-            // Cursor off shell — fade glow
+            // Cursor off shell — fade glow and clear rotation target
             shell.setCursorInfluence?.(0)
+            shell.setTargetRotationPoint?.(null)
         }
     }
 }

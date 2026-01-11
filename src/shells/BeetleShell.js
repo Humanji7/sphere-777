@@ -38,6 +38,12 @@ export class BeetleShell extends BaseShell {
         this.modelLoaded = false
         this.loadingPromise = null
 
+        // Cursor-guided rotation state
+        this.targetWorldPoint = null
+        this.rotationSpeed = 3.0  // Slerp speed for smooth rotation
+        this._targetQuat = new THREE.Quaternion()
+        this._currentQuat = new THREE.Quaternion()
+
         // Initialize with procedural geometry (fallback)
         this._createProceduralGeometry()
         this._createMaterial()
@@ -455,12 +461,60 @@ export class BeetleShell extends BaseShell {
             }
         }
 
-        // Slow unsettling rotation
+        // Cursor-guided rotation OR slow unsettling auto-rotation
         if (this.mesh && this.isVisible) {
-            this.mesh.rotation.y += delta * 0.03
-            this.mesh.rotation.z = Math.sin(elapsed * 0.15) * 0.02
-            // Slight wobble
-            this.mesh.rotation.x = Math.sin(elapsed * 0.1) * 0.01
+            if (this.targetWorldPoint) {
+                // ═══════════════════════════════════════════════════════════
+                // CURSOR-GUIDED ROTATION — "жук поворачивается к пальцу"
+                // ═══════════════════════════════════════════════════════════
+
+                // Calculate direction from mesh center to target point
+                const meshPos = this.mesh.position
+                const direction = new THREE.Vector3()
+                    .copy(this.targetWorldPoint)
+                    .sub(meshPos)
+                    .normalize()
+
+                // Create target quaternion looking at the point
+                // We want the "front" of beetle to face the cursor
+                // Using lookAt-style rotation
+                const up = new THREE.Vector3(0, 1, 0)
+                const lookMatrix = new THREE.Matrix4().lookAt(
+                    meshPos,
+                    this.targetWorldPoint,
+                    up
+                )
+                this._targetQuat.setFromRotationMatrix(lookMatrix)
+
+                // Smooth slerp rotation
+                this._currentQuat.setFromEuler(this.mesh.rotation)
+                this._currentQuat.slerp(this._targetQuat, this.rotationSpeed * delta)
+                this.mesh.rotation.setFromQuaternion(this._currentQuat)
+
+                // Add subtle wobble on top of rotation
+                this.mesh.rotation.z += Math.sin(elapsed * 0.15) * 0.015
+            } else {
+                // Auto-rotation when no cursor target
+                this.mesh.rotation.y += delta * 0.03
+                this.mesh.rotation.z = Math.sin(elapsed * 0.15) * 0.02
+                this.mesh.rotation.x = Math.sin(elapsed * 0.1) * 0.01
+            }
+        }
+    }
+
+    /**
+     * Set target point for cursor-guided rotation
+     * BeetleShell will smoothly rotate to face this point
+     * @param {THREE.Vector3|null} worldPos - target point in world space, or null to clear
+     */
+    setTargetRotationPoint(worldPos) {
+        if (worldPos) {
+            if (!this.targetWorldPoint) {
+                this.targetWorldPoint = new THREE.Vector3()
+            }
+            this.targetWorldPoint.copy(worldPos)
+        } else {
+            this.targetWorldPoint = null
         }
     }
 
