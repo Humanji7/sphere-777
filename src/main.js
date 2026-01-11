@@ -142,8 +142,13 @@ class App {
             this.particleSystem,
             this.camera
         )
-        // PROTOTYPE: Testing procedural shader-based BeetleShell
-        this.transformManager.registerShell('beetle', new BeetleShell(this.scene))
+        // BeetleShell with GLB model loading (falls back to procedural if load fails)
+        const beetleShell = new BeetleShell(this.scene)
+        this.transformManager.registerShell('beetle', beetleShell)
+        // Preload GLB model asynchronously
+        beetleShell.preload().then((loaded) => {
+            console.log(`[App] BeetleShell model: ${loaded ? 'GLB loaded' : 'using procedural fallback'}`)
+        })
         // this.transformManager.DEBUG = true  // Uncomment for debug logging
     }
 
