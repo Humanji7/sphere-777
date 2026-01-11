@@ -136,13 +136,14 @@ class App {
         this.scene.add(this.livingCore.getMesh())
 
         // Transformation Manager (Eerie shell states)
+        // TEMPORARILY DISABLED — needs proper 3D shell implementation
         this.transformManager = new TransformationManager(
             this.scene,
             this.particleSystem,
             this.camera
         )
-        // Register BeetleShell (first implementation)
-        this.transformManager.registerShell('beetle', new BeetleShell(this.scene))
+        // TODO: BeetleShell needs to be a real 3D asset, not a shader-based sphere
+        // this.transformManager.registerShell('beetle', new BeetleShell(this.scene))
         // this.transformManager.DEBUG = true  // Uncomment for debug logging
     }
 
