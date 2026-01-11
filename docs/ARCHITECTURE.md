@@ -1,270 +1,157 @@
-# Архитектура: SPHERE Prototype
+# Архитектура: SPHERE-777
 
-> Stage 6 Complete — Deep Interaction + Mobile + Sound + Emotional Memory
+> **Stage 8** — Living Organism with Idle Agency
 
 ---
 
-## Обзор системы
+## Обзор
 
-Интерактивная 3D-сфера из 5,000 частиц — живое существо, которое дышит, чувствует и запоминает.
+Интерактивная 3D-сфера из 5,000 частиц — **живое существо с характером**, которое дышит, чувствует, запоминает и **само проявляет инициативу**.
 
 ```mermaid
 graph TB
-    subgraph Browser
-        main["main.js<br/>(Entry Point)"]
-        
-        subgraph Core["Core Modules"]
-            sphere["Sphere.js<br/>(Orchestrator)"]
-            particles["ParticleSystem.js<br/>(GPU Render)"]
-            eye["Eye.js<br/>(Gaze & Blink)"]
-        end
-        
-        subgraph Input["Input Layer"]
-            input["InputManager.js<br/>(Mouse/Touch)"]
-            memory["MemoryManager.js<br/>(Trust & Memory)"]
-        end
-        
-        subgraph Effects["Effect Layer"]
-            conductor["EffectConductor.js<br/>(Probabilistic FX)"]
-            sound["SoundManager.js<br/>(Web Audio)"]
-        end
-        
-        subgraph Render["Render Pipeline"]
-            bloom["UnrealBloomPass"]
-            chromatic["RGBShiftShader"]
-        end
+    subgraph Core["Core"]
+        main["main.js"]
+        sphere["Sphere.js"]
+        particles["ParticleSystem.js"]
+        eye["Eye.js"]
+    end
+    
+    subgraph Life["Life Systems"]
+        livingCore["LivingCore.js"]
+        organicTicks["OrganicTicks.js"]
+        idleAgency["IdleAgency.js"]
+        haptic["HapticManager.js"]
+    end
+    
+    subgraph Input["Input & Memory"]
+        input["InputManager.js"]
+        memory["MemoryManager.js"]
+    end
+    
+    subgraph Effects["Effects & Audio"]
+        conductor["EffectConductor.js"]
+        sound["SoundManager.js"]
+        sonic["SonicOrganism.js"]
     end
     
     main --> sphere
     main --> particles
     main --> eye
-    main --> input
-    main --> memory
-    main --> conductor
-    main --> sound
+    main --> livingCore
+    main --> idleAgency
     
     sphere --> particles
     sphere --> eye
     sphere --> memory
     sphere --> sound
     
+    idleAgency --> organicTicks
+    idleAgency --> sphere
+    
     input --> sphere
     conductor --> particles
-    conductor --> chromatic
-    
-    particles --> bloom
-    bloom --> chromatic
 ```
 
 ---
 
-## Компоненты
+## Модули (13 файлов)
 
-### 1. main.js — Entry Point
+### Core
 
-**Ответственность:**
-- Three.js инициализация (scene, camera, renderer)
-- Post-processing pipeline (Bloom, Chromatic Aberration)
-- RAF loop (requestAnimationFrame)
-- Responsive size multiplier для мобильных
+| Модуль | Ответственность |
+|--------|-----------------|
+| `main.js` | Three.js init, RAF loop, post-processing |
+| `Sphere.js` | Эмоциональная машина, координация |
+| `ParticleSystem.js` | GPU рендер, GLSL шейдеры |
+| `Eye.js` | Радужка, зрачок, моргание, слежение |
 
-**Ключевые параметры:**
-| Параметр | Desktop | Mobile |
-|----------|---------|--------|
-| Частицы | 5000 | 2000 |
-| Size Multiplier | 1.0x | 1.4-1.8x |
+### Life Systems (NEW)
+
+| Модуль | Ответственность |
+|--------|-----------------|
+| `LivingCore.js` | 3 слоя внутреннего свечения |
+| `OrganicTicks.js` | Автономные микро-движения (twitch, stretch, shiver, glance) |
+| `IdleAgency.js` | Mood state machine, face-viewer rotation, z-bounce |
+| `HapticManager.js` | Вибрация телефона, BPM паттерны |
+
+### Input & Memory
+
+| Модуль | Ответственность |
+|--------|-----------------|
+| `InputManager.js` | Mouse/Touch, gestures (9 типов) |
+| `MemoryManager.js` | Trust Index, Ghost/Warm Traces |
+
+### Effects & Audio
+
+| Модуль | Ответственность |
+|--------|-----------------|
+| `EffectConductor.js` | Стохастические эффекты |
+| `SoundManager.js` | Web Audio base |
+| `SonicOrganism.js` | 7-слойный процедурный звук |
 
 ---
 
-### 2. Sphere.js — Orchestrator
+## Эмоциональные фазы
 
-**Ответственность:**
-- Эмоциональная машина состояний
-- Координация всех модулей
-- Физика качения (rolling physics)
-- Обработка жестов
-
-**Состояния:**
 ```
 PEACE → LISTENING → TENSION → BLEEDING → TRAUMA → HEALING
   ↑                                                    ↓
   └────────────────────────────────────────────────────┘
 ```
 
-**Ключевые параметры:**
-| Параметр | Значение |
-|----------|----------|
-| breathSpeed | 0.3-0.8 (адаптивный) |
-| tensionDecay | 0.08 × trustMod |
-| traumaThreshold | 0.7 - (1-trust)×0.2 |
+### Idle Moods (IdleAgency)
+
+| Время idle | Mood | Поведение |
+|------------|------|-----------|
+| 0-2с | `calm` | Обычное дыхание |
+| 2-4с | `curious` | Глаз блуждает чаще |
+| 4-6с | `restless` | Микроповороты, ticks x2 |
+| 6с+ | `attention-seeking` | Z-bounce, вспышки, **поворот к камере** |
 
 ---
 
-### 3. ParticleSystem.js — GPU Renderer
+## Gesture → Emotion Mapping
 
-**Ответственность:**
-- BufferGeometry с Fibonacci-распределением
-- GLSL шейдеры (vertex + fragment)
-- Дыхание (breathing pulsation)
-- Cursor proximity effects
-- Ghost traces rendering
-
-**Uniforms:**
-```glsl
-uniform float uTime;
-uniform float uBreathPhase;
-uniform vec3 uCursorPos;
-uniform float uCursorInfluence;
-uniform float uSize;              // Dynamic sizing
-uniform float uGoosebumpAmount;   // Dual-layer waves
-uniform float uSparkleIntensity;  // Effect Conductor
-uniform float uDynamicSizeAmount; // Effect Conductor
-```
-
----
-
-### 4. Eye.js — Organic Eye
-
-**Ответственность:**
-- Частицы радужки (hypotrochoid pattern)
-- Soul Spark (центральная точка)
-- Gaze tracking (следит за курсором)
-- Blinking (случайное + эмоциональное)
-
-**Ключевые параметры:**
-| Параметр | Значение |
-|----------|----------|
-| Положение | North pole (0, 0, 1.5) |
-| Частицы | ~200 |
-| Blink interval | 3-7 сек |
-
----
-
-### 5. InputManager.js — Input Layer
-
-**Ответственность:**
-- Mouse/Touch position tracking
-- Velocity & acceleration
-- Gesture recognition (stroke, poke, orbit, tremble)
-- Approach speed detection
-
-**Жесты:**
-| Жест | Триггер | Эффект |
-|------|---------|--------|
-| stroke | smooth, slow motion | Успокаивает |
-| poke | quick tap/click | Вздрагивает |
-| orbit | circular motion | Гипноз |
-| tremble | erratic, fast motion | Нервничает |
-
----
-
-### 6. MemoryManager.js — Emotional Memory
-
-**Ответственность:**
-- Trust Index (0-1, persistent в localStorage)
-- Ghost Traces (визуальные шрамы)
-- Baseline anxiety модификация
-- Debounced persistence
-
-**Trust Index влияние:**
-| Trust | Tension Decay | Trauma Threshold | Peace Color |
-|-------|---------------|------------------|-------------|
-| 1.0 | 1.0x | 0.7 | Насыщенный фиолетовый |
-| 0.5 | 0.8x | 0.6 | Нейтральный |
-| 0.1 | 0.6x | 0.5 | Серо-холодный |
-
----
-
-### 7. EffectConductor.js — Living Chaos
-
-**Ответственность:**
-- Стохастические визуальные эффекты
-- Probability-based activation
-- Smooth interpolation
-
-**Эффекты:**
-| Эффект | Trigger | Визуал |
-|--------|---------|--------|
-| Dynamic Size | PEACE + random | Particles grow/shrink |
-| Sparkle | TENSION + random | Bright flashes |
-| Chromatic Aberration | tension > 0.5 | RGB split |
-
----
-
-### 8. SoundManager.js — Web Audio
-
-**Ответственность:**
-- Procedural sound generation
-- Emotional state sync
-- Touch/gesture sounds
-
-**Звуковые слои:**
-| Состояние | Звук |
-|-----------|------|
-| PEACE | Sub-bass hum (35Hz) |
-| LISTENING | Soft whisper |
-| TENSION | High whine (2000Hz) |
-| BLEEDING | Distortion + pain |
-
----
-
-## Потоки данных
-
-```
-User Input (mouse/touch)
-       │
-       ▼
-InputManager.update()
-       │
-       ├──→ position, velocity, gestures
-       │
-       ▼
-Sphere.update()
-       │
-       ├──→ State transitions
-       │         │
-       │         ├──→ MemoryManager.recordInteraction()
-       │         │         └──→ trustIndex ↑↓
-       │         │
-       │         ├──→ SoundManager.setPhase()
-       │         │
-       │         └──→ ParticleSystem.setBreathPhase()
-       │
-       ▼
-EffectConductor.update()
-       │
-       ├──→ dynamicSizeAmount, sparkleIntensity, chromaticAberration
-       │
-       ▼
-ParticleSystem.update() + Shaders
-       │
-       ▼
-Post-Processing (Bloom → Chromatic)
-       │
-       ▼
-Canvas Output
-```
+| Жест | Эмоция | Затухание |
+|------|--------|-----------|
+| poke, tremble, flick | alert | 2.0/с |
+| spiral | bleeding | 0.2/с |
+| hold >0.5s | trust | 0.3/с |
+| hover, stroke, tap | peace | — |
 
 ---
 
 ## Файловая структура
 
 ```
-prototype-sphere/
+sphere-777/
 ├── index.html
 ├── style.css
 ├── package.json
 ├── vite.config.js
-├── PHILOSOPHY.md        # → docs/PHILOSOPHY.md (moved)
+├── CLAUDE.md
+├── docs/
+│   ├── ARCHITECTURE.md      # ← этот файл
+│   ├── VISION.md            # Концепция
+│   ├── NEXT_SESSION.md      # Текущий статус
+│   ├── IMPLEMENTATION_ORGANIC_LIFE.md  # Детальные спеки
+│   ├── HANDOFF_IDLE_AGENCY.md          # Актуальный handoff
+│   └── HANDOFF_GESTURE_EMOTION_MAPPING.md
 └── src/
-    ├── main.js          # Entry point, orchestration
-    ├── Sphere.js        # Emotional state machine
-    ├── ParticleSystem.js # GPU particles, shaders
-    ├── Eye.js           # Organic particle eye
-    ├── InputManager.js  # Mouse/touch, gestures
-    ├── MemoryManager.js # Trust, ghost traces
-    ├── EffectConductor.js # Probabilistic effects
-    └── SoundManager.js  # Web Audio procedural
+    ├── main.js
+    ├── Sphere.js
+    ├── ParticleSystem.js
+    ├── Eye.js
+    ├── LivingCore.js
+    ├── OrganicTicks.js
+    ├── IdleAgency.js
+    ├── HapticManager.js
+    ├── InputManager.js
+    ├── MemoryManager.js
+    ├── EffectConductor.js
+    ├── SoundManager.js
+    └── SonicOrganism.js
 ```
 
 ---
@@ -273,28 +160,13 @@ prototype-sphere/
 
 ```json
 {
-  "dependencies": {
-    "three": "^0.160.0"
-  },
-  "devDependencies": {
-    "vite": "^5.0.0"
-  }
+  "three": "^0.160.0",
+  "vite": "^5.0.0"
 }
 ```
 
-Минимализм. Никаких дополнительных библиотек.
+Минимализм. Никаких лишних библиотек.
 
 ---
 
-## Точки расширения
-
-| Точка | Как расширить |
-|-------|---------------|
-| Новые жесты | `InputManager.js` → `_detectGesture()` |
-| Новые эмоции | `Sphere.js` → `_processGesture()`, добавить phase |
-| Новые эффекты | `EffectConductor.js` → добавить effect layer |
-| Новые звуки | `SoundManager.js` → добавить oscillator |
-
----
-
-*Updated: 2026-01-08 — Stage 6 Complete*
+*Updated: 2026-01-11 — Stage 8 Living Organism*
