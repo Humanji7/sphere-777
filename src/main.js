@@ -222,7 +222,7 @@ class App {
             this.livingCore.update(
                 delta,
                 elapsed,
-                this.sphere.currentPhase || 'peace',
+                this.sphere.getEmotionPhase?.() || 'peace',
                 breathPhase,
                 touch,
                 rotation

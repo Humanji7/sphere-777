@@ -118,6 +118,16 @@ export class Sphere {
             spiralTrance: 0         // 0-1, deep trance from spiral
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // EMOTION STATE (Gesture→Emotion Mapping)
+        // Decouples visual appearance from PHASE state machine
+        // ═══════════════════════════════════════════════════════════
+        this.emotionState = {
+            current: 'peace',    // peace | alert | trust | bleeding
+            intensity: 0,        // 0-1 for fade effects
+            decayRate: 0         // per-second decay
+        }
+
         // Ripple effect state (poke reaction)
         this.ripple = {
             active: false,
@@ -212,6 +222,16 @@ export class Sphere {
         this.haptic = hm
     }
 
+    /**
+     * Get current emotion phase for LivingCore visual appearance
+     * Returns emotionState.current (gesture-driven) which controls colors
+     * separate from PHASE state machine (gameplay mechanics)
+     * @returns {string} peace | alert | trust | bleeding
+     */
+    getEmotionPhase() {
+        return this.emotionState.current
+    }
+
     update(delta, elapsed) {
         const inputState = this.input.getState()
 
@@ -296,6 +316,10 @@ export class Sphere {
                 const calmingAmount = delta * calmingRate * (1 + depth * 2)
                 this.traumaLevel = Math.max(0, this.traumaLevel - calmingAmount * 0.5)
                 this.tensionTime = Math.max(0, this.tensionTime - calmingAmount)
+
+                // TRUST emotion for LivingCore (hold >0.5s = gold warmth)
+                // Intensity grows with depth, slow decay on release
+                this._setEmotion('trust', Math.min(1, depth + 0.3), 0.3)
             }
         } else if (this.osmosisActive) {
             // Hold released — exit osmosis
@@ -304,6 +328,9 @@ export class Sphere {
 
         // Process current phase and check transitions
         this._processPhase(delta, inputState)
+
+        // Update emotion state (gesture→emotion decay)
+        this._updateEmotion(delta)
 
         // Update Inner Glow (Bioluminescence)
         this._updateInnerGlow(delta)
@@ -353,8 +380,37 @@ export class Sphere {
         }
     }
 
+    /**
+     * Set emotion state for LivingCore visual appearance
+     * @param {string} emotion - peace | alert | trust | bleeding
+     * @param {number} intensity - 0-1
+     * @param {number} decayRate - per-second decay rate
+     */
+    _setEmotion(emotion, intensity, decayRate) {
+        this.emotionState.current = emotion
+        this.emotionState.intensity = intensity
+        this.emotionState.decayRate = decayRate
+
+        // Debug logging (temporary)
+        // console.log(`[EMOTION] → ${emotion} (intensity=${intensity.toFixed(2)}, decay=${decayRate})`)
+    }
+
+    /**
+     * Update emotion state - decay intensity over time
+     * @param {number} delta - Frame delta time
+     */
+    _updateEmotion(delta) {
+        const e = this.emotionState
+        e.intensity = Math.max(0, e.intensity - delta * e.decayRate)
+
+        // Return to peace when emotion fades
+        if (e.intensity <= 0 && e.current !== 'peace') {
+            e.current = 'peace'
+        }
+    }
+
     _processPeace(delta, inputState) {
-        const { velocity, idleTime } = inputState
+        const { velocity, idleTime, gestureType } = inputState
 
         // Reset listening flag when movement resumes
         if (velocity > 0.02) {
@@ -368,15 +424,28 @@ export class Sphere {
             return
         }
 
-        // Check for TENSION trigger
-        if (velocity > this.config.tensionVelocity) {
-            this.tensionTime += delta
-            if (this.tensionTime > this.config.tensionDuration) {
-                this._transitionTo(PHASE.TENSION)
-                return
-            }
-        } else {
-            this.tensionTime = Math.max(0, this.tensionTime - delta * 2) // Decay faster
+        // ═══════════════════════════════════════════════════════════
+        // GESTURE → EMOTION MAPPING (replaces velocity-based triggers)
+        // Only affects LivingCore colors, NOT the PHASE state machine
+        // ═══════════════════════════════════════════════════════════
+        switch (gestureType) {
+            case 'poke':
+            case 'tremble':
+            case 'flick':
+                // Alert: brief warm flash (1-2s)
+                this._setEmotion('alert', 1.0, 2.0)
+                break
+
+            case 'spiral':
+                // Bleeding: deep trance pulse
+                this._setEmotion('bleeding', 0.8, 0.2)
+                break
+
+            // Gentle gestures → stay peace (no action needed)
+            // case 'hover':
+            // case 'moving':
+            // case 'stroke':
+            // case 'tap':
         }
 
         // Gradual trauma recovery in peace (modified by trust level)
@@ -384,6 +453,7 @@ export class Sphere {
             const decayMod = this.memory ? this.memory.getTensionDecayModifier() : 1.0
             this.traumaLevel = Math.max(0, this.traumaLevel - delta * 0.05 * decayMod)
         }
+
     }
 
     _processListening(delta, inputState) {
