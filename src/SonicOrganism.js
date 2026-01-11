@@ -44,6 +44,9 @@ export class SonicOrganism {
         this._initSpectralBody()
         this._initPulseNetwork()
         this._initGranularMembrane()  // L3: Tactile grain cloud
+        this._initBreathNoise()        // L1.5: Breath texture layer
+        this._initSpatialField()       // L5: 3D audio positioning
+        this._initFormantVoice()       // L4: Vowel presence layer
 
         // Resume context if suspended
         if (this.audioContext.state === 'suspended') {
@@ -57,7 +60,7 @@ export class SonicOrganism {
     // ═══════════════════════════════════════════════════════════════════════
 
     _initSpectralBody() {
-        const FUNDAMENTAL = 55  // A1, deep base tone
+        const FUNDAMENTAL = 110  // A2, audible base tone (moved up from 55Hz to eliminate drone)
         const HARMONIC_COUNT = 32
 
         // Group gain nodes for band control
@@ -124,8 +127,10 @@ export class SonicOrganism {
         const gain = this.audioContext.createGain()
         gain.gain.value = baseAmplitude * 0.3  // Scale down for mixing
 
-        // Slight random detuning for organic feel (±3 cents)
-        const detune = (Math.random() - 0.5) * 6
+        // Graduated detuning for organic "chorus" feel
+        // Lower harmonics get more detune for warm beating, higher harmonics stay clean
+        const detuneCents = n <= 2 ? 18 : n <= 8 ? 10 : 4
+        const detune = (Math.random() - 0.5) * detuneCents * 2
         oscillator.detune.value = detune
 
         // Connect
@@ -301,6 +306,341 @@ export class SonicOrganism {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // LAYER 1.5: BREATH NOISE — Filtered white noise with asymmetric envelope
+    // "Air" in the sound — inhale faster than exhale (matches visual pow 1.6)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    _initBreathNoise() {
+        // Create white noise buffer
+        const bufferSize = this.audioContext.sampleRate * 2  // 2 seconds
+        const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate)
+        const output = noiseBuffer.getChannelData(0)
+
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1
+        }
+
+        // Noise source (looping)
+        this.breathNoise = this.audioContext.createBufferSource()
+        this.breathNoise.buffer = noiseBuffer
+        this.breathNoise.loop = true
+
+        // Bandpass filter (200-800Hz for breath texture)
+        this.breathFilter = this.audioContext.createBiquadFilter()
+        this.breathFilter.type = 'bandpass'
+        this.breathFilter.frequency.value = 400  // Center frequency, will be modulated
+        this.breathFilter.Q.value = 1.5
+
+        // Envelope gain (asymmetric attack/release controlled in update)
+        this.breathGain = this.audioContext.createGain()
+        this.breathGain.gain.value = 0  // Start silent
+
+        // Connect chain: noise → filter → gain → master (at -12dB relative)
+        this.breathNoise.connect(this.breathFilter)
+        this.breathFilter.connect(this.breathGain)
+        this.breathGain.connect(this.masterGain)
+
+        // Start noise source
+        this.breathNoise.start(this.audioContext.currentTime)
+
+        // Track breath phase for asymmetric envelope
+        this.breathPhase = 0
+        this.lastBreathUpdate = 0
+    }
+
+    /**
+     * Update breath noise layer based on breath pulse
+     * @param {number} breathValue - Current breath pulse (0-1)
+     * @param {number} elapsed - Total elapsed time
+     */
+    _updateBreathNoise(breathValue, elapsed) {
+        if (!this.breathGain || !this.breathFilter) return
+
+        const now = this.audioContext.currentTime
+
+        // Asymmetric envelope matching visual pow(1.6) asymmetry
+        // Inhale (rising): fast attack (0.3s)
+        // Exhale (falling): slow release (0.8s)
+        const attackTime = 0.3
+        const releaseTime = 0.8
+
+        // Determine if we're in attack or release phase
+        const dt = elapsed - this.lastBreathUpdate
+        this.lastBreathUpdate = elapsed
+
+        // Target amplitude based on breath value (-12dB = 0.25 relative)
+        const targetAmplitude = breathValue * 0.04  // -12dB from master @ 0.15
+
+        // Choose ramp time based on direction
+        const currentGain = this.breathGain.gain.value
+        const rampTime = targetAmplitude > currentGain ? attackTime : releaseTime
+
+        // Apply envelope
+        this.breathGain.gain.linearRampToValueAtTime(targetAmplitude, now + Math.min(rampTime, 0.1))
+
+        // Modulate filter frequency with breath (200-800Hz range)
+        const filterFreq = 200 + breathValue * 600
+        this.breathFilter.frequency.linearRampToValueAtTime(filterFreq, now + 0.05)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // LAYER 5: SPATIAL FIELD — HRTF 3D audio positioning
+    // Sound follows cursor position in 3D space (quick win: 20 lines)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    _initSpatialField() {
+        // Create HRTF panner for binaural audio
+        this.spatialPanner = this.audioContext.createPanner()
+        this.spatialPanner.panningModel = 'HRTF'
+        this.spatialPanner.distanceModel = 'inverse'
+        this.spatialPanner.refDistance = 1
+        this.spatialPanner.maxDistance = 10000
+        this.spatialPanner.rolloffFactor = 1
+
+        // Set listener at origin
+        const listener = this.audioContext.listener
+        if (listener.positionX) {
+            listener.positionX.value = 0
+            listener.positionY.value = 0
+            listener.positionZ.value = 0
+        }
+
+        // Insert panner between spectral gain and master
+        // spectral → panner → master (instead of spectral → master)
+        this.spectralGain.disconnect()
+        this.spectralGain.connect(this.spatialPanner)
+        this.spatialPanner.connect(this.masterGain)
+
+        // Track cursor position for spatial
+        this.cursorX = 0
+        this.cursorY = 0
+    }
+
+    /**
+     * Update spatial positioning based on cursor
+     * @param {number} x - Cursor X (-1 to 1)
+     * @param {number} y - Cursor Y (-1 to 1)
+     */
+    _updateSpatialField(x, y) {
+        if (!this.spatialPanner) return
+
+        // Map cursor to 3D position
+        // X becomes left-right, Y becomes up-down, Z stays fixed
+        const posX = x * 2  // -2 to 2 range
+        const posY = y * 2  // -2 to 2 range
+        const posZ = -1     // In front of listener
+
+        const now = this.audioContext.currentTime
+
+        if (this.spatialPanner.positionX) {
+            // Modern API with AudioParam
+            this.spatialPanner.positionX.linearRampToValueAtTime(posX, now + 0.05)
+            this.spatialPanner.positionY.linearRampToValueAtTime(posY, now + 0.05)
+            this.spatialPanner.positionZ.linearRampToValueAtTime(posZ, now + 0.05)
+        } else {
+            // Legacy API
+            this.spatialPanner.setPosition(posX, posY, posZ)
+        }
+
+        this.cursorX = x
+        this.cursorY = y
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // LAYER 4: FORMANT VOICE — Vowel-like presence with micro-vibrato
+    // Creates near-vocalization "almost words" that respond to emotion
+    // ═══════════════════════════════════════════════════════════════════════
+
+    _initFormantVoice() {
+        // Formant frequencies for different vowels (based on human vocal tract)
+        this.vowelFormants = {
+            // [a] - Peace, Open acceptance
+            a: { f1: 730, f2: 1090, f3: 2440 },
+            // [o] - Trust, Warm embrace
+            o: { f1: 570, f2: 840, f3: 2410 },
+            // [i] - Curiosity, Reaching out
+            i: { f1: 270, f2: 2290, f3: 3010 },
+            // [ɪ] - Fear, Withdrawal
+            fear: { f1: 400, f2: 1920, f3: 2560 }
+        }
+
+        // Create formant filter bank (5 parallel bandpass filters)
+        this.formantFilters = []
+        this.formantGains = []
+
+        // Main formant output gain (-6dB idle, 0dB active)
+        this.formantMasterGain = this.audioContext.createGain()
+        this.formantMasterGain.gain.value = 0.1  // Start at -6dB equivalent
+        this.formantMasterGain.connect(this.masterGain)
+
+        // Create 5 formant resonators
+        for (let i = 0; i < 5; i++) {
+            const filter = this.audioContext.createBiquadFilter()
+            filter.type = 'bandpass'
+            filter.Q.value = 10 + i * 5  // Increasing Q for higher formants
+
+            const gain = this.audioContext.createGain()
+            gain.gain.value = 0.2 / (i + 1)  // Decreasing amplitude for higher formants
+
+            // Connect spectral body through formants
+            this.spectralGain.connect(filter)
+            filter.connect(gain)
+            gain.connect(this.formantMasterGain)
+
+            this.formantFilters.push(filter)
+            this.formantGains.push(gain)
+        }
+
+        // Initialize to neutral [a] vowel
+        this._setVowel('a')
+
+        // Micro-vibrato LFO (5-7 Hz natural vocal cord tremor)
+        this.vibratoLFO = this.audioContext.createOscillator()
+        this.vibratoLFO.type = 'sine'
+        this.vibratoLFO.frequency.value = 6  // 6 Hz tremor
+
+        this.vibratoGain = this.audioContext.createGain()
+        this.vibratoGain.gain.value = 5  // ±5 Hz depth
+
+        // Connect LFO to modulate formant frequencies
+        this.vibratoLFO.connect(this.vibratoGain)
+        this.formantFilters.forEach(filter => {
+            this.vibratoGain.connect(filter.frequency)
+        })
+
+        this.vibratoLFO.start(this.audioContext.currentTime)
+
+        // Track current vowel blend
+        this.currentVowelMix = { a: 1, o: 0, i: 0, fear: 0 }
+    }
+
+    /**
+     * Set formant frequencies to match a vowel
+     */
+    _setVowel(vowelName) {
+        const vowel = this.vowelFormants[vowelName]
+        if (!vowel) return
+
+        const now = this.audioContext.currentTime
+
+        // F1, F2, F3 are primary formants
+        if (this.formantFilters[0]) {
+            this.formantFilters[0].frequency.linearRampToValueAtTime(vowel.f1, now + 0.1)
+        }
+        if (this.formantFilters[1]) {
+            this.formantFilters[1].frequency.linearRampToValueAtTime(vowel.f2, now + 0.1)
+        }
+        if (this.formantFilters[2]) {
+            this.formantFilters[2].frequency.linearRampToValueAtTime(vowel.f3, now + 0.1)
+        }
+        // F4, F5 are harmonics of lower formants
+        if (this.formantFilters[3]) {
+            this.formantFilters[3].frequency.linearRampToValueAtTime(vowel.f1 * 1.5, now + 0.1)
+        }
+        if (this.formantFilters[4]) {
+            this.formantFilters[4].frequency.linearRampToValueAtTime(vowel.f2 * 1.2, now + 0.1)
+        }
+    }
+
+    /**
+     * Blend between vowels based on mix ratios
+     */
+    _blendVowels(mix) {
+        const now = this.audioContext.currentTime
+        const blended = { f1: 0, f2: 0, f3: 0 }
+
+        // Weight each vowel's formants
+        for (const [vowelName, weight] of Object.entries(mix)) {
+            const vowel = this.vowelFormants[vowelName]
+            if (vowel && weight > 0) {
+                blended.f1 += vowel.f1 * weight
+                blended.f2 += vowel.f2 * weight
+                blended.f3 += vowel.f3 * weight
+            }
+        }
+
+        // Apply blended formants
+        if (this.formantFilters[0]) {
+            this.formantFilters[0].frequency.linearRampToValueAtTime(blended.f1, now + 0.1)
+        }
+        if (this.formantFilters[1]) {
+            this.formantFilters[1].frequency.linearRampToValueAtTime(blended.f2, now + 0.1)
+        }
+        if (this.formantFilters[2]) {
+            this.formantFilters[2].frequency.linearRampToValueAtTime(blended.f3, now + 0.1)
+        }
+    }
+
+    /**
+     * Update formant voice based on emotional state
+     * Maps trust, tension, and activity to vowel blending and vibrato
+     */
+    _updateFormantVoice(state = {}) {
+        if (!this.formantFilters || this.formantFilters.length === 0) return
+
+        const {
+            trustIndex = 0.5,
+            colorProgress = 0,
+            isActive = false,
+            holdSaturation = 0
+        } = state
+
+        const now = this.audioContext.currentTime
+
+        // Emotional Morphing (from implementation plan B.2):
+        // - High trust → [a] → [o] (warm, open)
+        // - High tension (colorProgress) → [a] → [ɪ] (fearful)
+        // - Active interaction → louder formant, stronger vibrato
+        // - Hold saturation → deep [o] with intense tremor
+
+        let vowelMix = { a: 0, o: 0, i: 0, fear: 0 }
+
+        if (holdSaturation > 0.5) {
+            // Deep hold: dominated by [o] with some [a]
+            vowelMix.o = 0.7 + holdSaturation * 0.3
+            vowelMix.a = 1 - vowelMix.o
+        } else if (colorProgress > 0.5) {
+            // High tension: shift toward [ɪ] (fear)
+            vowelMix.fear = colorProgress
+            vowelMix.a = 1 - colorProgress
+        } else if (trustIndex > 0.6) {
+            // High trust: warm [o] with [a]
+            vowelMix.o = (trustIndex - 0.5) * 2
+            vowelMix.a = 1 - vowelMix.o
+        } else {
+            // Neutral: mostly [a] with hint of [i] (curiosity)
+            vowelMix.a = 0.7
+            vowelMix.i = 0.3
+        }
+
+        // Normalize mix
+        const total = Object.values(vowelMix).reduce((a, b) => a + b, 0)
+        if (total > 0) {
+            for (const key in vowelMix) {
+                vowelMix[key] /= total
+            }
+        }
+
+        this._blendVowels(vowelMix)
+        this.currentVowelMix = vowelMix
+
+        // Update formant volume: -6dB idle, 0dB active
+        const targetFormantGain = isActive ? 0.25 : 0.1
+        this.formantMasterGain.gain.linearRampToValueAtTime(targetFormantGain, now + 0.1)
+
+        // Update vibrato: deeper on hold, faster on tension
+        if (this.vibratoGain && this.vibratoLFO) {
+            // Vibrato depth: base ±5Hz, up to ±15Hz on hold saturation
+            const vibratoDepth = 5 + holdSaturation * 10
+            this.vibratoGain.gain.linearRampToValueAtTime(vibratoDepth, now + 0.1)
+
+            // Vibrato rate: base 6Hz, up to 8Hz on high tension
+            const vibratoRate = 6 + colorProgress * 2
+            this.vibratoLFO.frequency.linearRampToValueAtTime(vibratoRate, now + 0.1)
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // UPDATE LOOP — Called every frame from main.js
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -322,7 +662,8 @@ export class SonicOrganism {
             emotionalState = 'PEACE',
             isActive = false,
             touch = {},           // L3: Touch state for granular membrane
-            ghostTraces = []      // L3: Ghost traces for frozen loops
+            ghostTraces = [],     // L3: Ghost traces for frozen loops
+            holdSaturation = 0    // L4: Hold intensity for formant
         } = state
 
         // Smooth interpolation for all values (lerp with 0.05 factor)
@@ -343,6 +684,22 @@ export class SonicOrganism {
 
         // Apply Layer 3: Granular Membrane (touch texture)
         this._updateGranularMembrane(touch, ghostTraces)
+
+        // Apply Layer 1.5: Breath Noise (synced to breath pulse)
+        this._updateBreathNoise(pulses.breath, elapsed)
+
+        // Apply Layer 5: Spatial Field (cursor following)
+        const cursorX = touch.x || 0
+        const cursorY = touch.y || 0
+        this._updateSpatialField(cursorX, cursorY)
+
+        // Apply Layer 4: Formant Voice (emotional vowel morphing)
+        this._updateFormantVoice({
+            trustIndex: this.currentTrustIndex,
+            colorProgress: this.currentColorProgress,
+            isActive,
+            holdSaturation
+        })
 
         // Debug logging (every 60 frames)
         if (this.debug && this.frameCount % 60 === 0) {
@@ -504,6 +861,31 @@ export class SonicOrganism {
         if (this.granularNode) {
             this.granularNode.disconnect()
             this.granularGain?.disconnect()
+        }
+
+        // Disconnect breath noise (L1.5)
+        if (this.breathNoise) {
+            this.breathNoise.stop()
+            this.breathNoise.disconnect()
+            this.breathFilter?.disconnect()
+            this.breathGain?.disconnect()
+        }
+
+        // Disconnect spatial field (L5)
+        if (this.spatialPanner) {
+            this.spatialPanner.disconnect()
+        }
+
+        // Disconnect formant voice (L4)
+        if (this.vibratoLFO) {
+            this.vibratoLFO.stop()
+            this.vibratoLFO.disconnect()
+            this.vibratoGain?.disconnect()
+        }
+        if (this.formantFilters) {
+            this.formantFilters.forEach(f => f.disconnect())
+            this.formantGains?.forEach(g => g.disconnect())
+            this.formantMasterGain?.disconnect()
         }
 
         this.spectralGain.disconnect()
