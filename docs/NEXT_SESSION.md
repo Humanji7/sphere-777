@@ -1,6 +1,6 @@
 # 🌐 SPHERE-777: Текущий Статус
 
-**Обновлено:** 2026-01-11
+**Обновлено:** 2026-01-11 13:06
 
 ---
 
@@ -25,31 +25,63 @@
 - **Sensitivity Zones** — неоднородная кожа
 - **LivingCore** — 3 слоя внутреннего свечения
 
-### Idle Agency ✅ (NEW)
+### Idle Agency ✅
 - **IdleAgency.js** — mood state machine
 - calm (0-2с) → curious (2-4с) → restless (4-6с) → attention-seeking (6с+)
 - Face-viewer rotation
 - Z-bounce + luminous flashes
+- 🆕 **Mobile fix:** `activeDecayTimer` в InputManager
 
 ### Audio
 - Sonic Organism — 7-слойный звук
 
 ---
 
-## 🎯 Следующие шаги
+## 🎯 Предложения на продолжение
 
-### Polish & QA
-- [ ] Тестирование на мобильных устройствах
-- [ ] Fine-tuning параметров (timing, colors, intensities)
-- [ ] Performance optimization
+### 🔥 Высокий приоритет
 
-### Autonomous Behavior v2
-- [ ] Trust-aware behaviors (reach/withdraw)
-- [ ] Звуковые реакции на idle
+#### 1. Trust-Aware Idle Behaviors
+**Сейчас:** Idle-поведение одинаковое для всех.  
+**Идея:** Высокий Trust → сфера "тянется" к камере (reach), низкий → отодвигается (withdraw).
 
-### Voice (Future)
-- [ ] Формат коммуникации TBD
-- [ ] Личность сферы TBD
+```javascript
+// В IdleAgency._behaveAttentionSeeking()
+const trustBias = this.sphere.memoryManager?.trustIndex || 0.5
+const reachZ = trustBias > 0.6 ? 0.1 : (trustBias < 0.3 ? -0.1 : 0)
+```
+
+#### 2. Sonic Idle Reactions
+**Сейчас:** Звук не реагирует на idle-состояние.  
+**Идея:** В `attention-seeking` — тихий "зов" (subtle sine sweep или шёпот).
+
+#### 3. Mobile Testing Suite
+- [ ] Протестировать на iOS Safari
+- [ ] Протестировать на Android Chrome
+- [ ] Проверить touch pressure (Force Touch на iPhone)
+
+---
+
+### 🟡 Средний приоритет
+
+#### 4. Idle Mood → Living Core Sync
+Связать mood с `LivingCore` — в `restless` пульс ускоряется, в `attention-seeking` яркие flash'ы.
+
+#### 5. Gentle Error Recovery
+Если юзер резко вернулся после долгого idle → мягкий "вздох облегчения" вместо резкого reset.
+
+#### 6. Performance Profiling
+- Измерить FPS на слабых устройствах
+- Оптимизировать если нужно (reduce particle count, simplify shaders)
+
+---
+
+### 🔮 Будущее
+
+#### Voice / Communication
+- Формат общения: текст? эмодзи? звуки?
+- Характер: игривый, мудрый, загадочный?
+- Когда говорит? Только в attention-seeking? Или реагирует на жесты?
 
 ---
 
@@ -62,8 +94,7 @@
 | `IMPLEMENTATION_ORGANIC_LIFE.md` | Детальные спецификации |
 
 ### Актуальные HANDOFF
-- `HANDOFF_IDLE_AGENCY.md` — последняя фича
-- `HANDOFF_GESTURE_EMOTION_MAPPING.md` — gesture system
+- `HANDOFF_IDLE_AGENCY.md` — idle система + mobile fix
 
 ---
 
