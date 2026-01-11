@@ -142,8 +142,8 @@ class App {
             this.particleSystem,
             this.camera
         )
-        // TODO: BeetleShell needs to be a real 3D asset, not a shader-based sphere
-        // this.transformManager.registerShell('beetle', new BeetleShell(this.scene))
+        // PROTOTYPE: Testing procedural shader-based BeetleShell
+        this.transformManager.registerShell('beetle', new BeetleShell(this.scene))
         // this.transformManager.DEBUG = true  // Uncomment for debug logging
     }
 

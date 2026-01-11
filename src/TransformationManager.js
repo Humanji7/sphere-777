@@ -92,9 +92,21 @@ export class TransformationManager {
             this._processTransition(delta)
         }
 
-        // Update active shell
-        if (this.currentState !== 'organic' && this.shells[this.currentState]) {
+        // Update target shell during transition TO shell (for smooth fade-in)
+        if (this.isTransitioning && this.targetState && this.targetState !== 'organic' && this.shells[this.targetState]) {
+            this.shells[this.targetState].update(delta, elapsed)
+        }
+
+        // Update current shell during transition TO organic (for smooth fade-out)
+        if (this.isTransitioning && this.targetState === 'organic' && this.currentState !== 'organic' && this.shells[this.currentState]) {
             this.shells[this.currentState].update(delta, elapsed)
+        }
+
+        // Update active shell when fully transitioned (not during return to organic)
+        if (!this.isTransitioning && this.currentState !== 'organic' && this.shells[this.currentState]) {
+            this.shells[this.currentState].update(delta, elapsed)
+            // Keep particles hidden while in shell state
+            this.particles.setTransformFade(0)
         }
     }
 
