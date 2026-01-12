@@ -87,6 +87,32 @@ export class SampleSoundSystem {
         this.currentIntensity = 0
 
         this.loaded = false
+
+        // ═══════════════════════════════════════════════════════════════
+        // L4 TAIL — Reverb/delay feedback loop for "memory of contact"
+        // Sound continues 2-3s after release
+        // ═══════════════════════════════════════════════════════════════
+        this.tailDelay = this.audioContext.createDelay(5.0)  // max 5s delay
+        this.tailDelay.delayTime.value = 0.08  // 80ms pre-delay
+
+        this.tailFeedback = this.audioContext.createGain()
+        this.tailFeedback.gain.value = 0.35  // feedback amount (~2-3s decay)
+
+        this.tailFilter = this.audioContext.createBiquadFilter()
+        this.tailFilter.type = 'lowpass'
+        this.tailFilter.frequency.value = 3000  // darken repeats
+
+        this.tailWetGain = this.audioContext.createGain()
+        this.tailWetGain.gain.value = 0.25  // wet mix
+
+        // Connect feedback loop: delay → filter → feedback → delay
+        this.tailDelay.connect(this.tailFilter)
+        this.tailFilter.connect(this.tailFeedback)
+        this.tailFeedback.connect(this.tailDelay)
+
+        // Wet output to master
+        this.tailDelay.connect(this.tailWetGain)
+        this.tailWetGain.connect(this.masterGain)
     }
 
     /**
@@ -166,7 +192,13 @@ export class SampleSoundSystem {
         panner.connect(gain)
         gain.connect(this.masterGain)
 
-        return { source, filter, panner, gain }
+        // Add send to tail reverb (L4 Tail)
+        const sendGain = this.audioContext.createGain()
+        sendGain.gain.value = 0.4  // send amount
+        gain.connect(sendGain)
+        sendGain.connect(this.tailDelay)
+
+        return { source, filter, panner, gain, sendGain }
     }
 
     /**
@@ -211,13 +243,14 @@ export class SampleSoundSystem {
         if (!chain) return
 
         const now = this.audioContext.currentTime
-        chain.gain.gain.linearRampToValueAtTime(0, now + 0.4)
+        // L4 Tail: Extended fade out (1.5s) for smooth transition into tail reverb
+        chain.gain.gain.linearRampToValueAtTime(0, now + 1.5)
 
         setTimeout(() => {
             try {
                 chain.source.stop()
             } catch (e) {}
-        }, 450)
+        }, 1600)  // 1.6s to match extended fade
 
         this.activeSources[name] = null
     }
@@ -372,6 +405,14 @@ export class SampleSoundSystem {
     unmute() { this.setVolume(0.35) }
 
     /**
+     * Toggle tail reverb on/off (for debugging)
+     */
+    setTailEnabled(enabled) {
+        this.tailWetGain.gain.value = enabled ? 0.25 : 0
+        console.log(`[SampleSoundSystem] Tail ${enabled ? 'ON' : 'OFF'}`)
+    }
+
+    /**
      * Get current LFO values for debug visualization
      */
     getDebugInfo(elapsed) {
@@ -391,6 +432,13 @@ export class SampleSoundSystem {
     dispose() {
         this._stopLayer('foundation')
         this._stopLayer('glass')
+        
+        // Clean up tail nodes
+        this.tailDelay?.disconnect()
+        this.tailFeedback?.disconnect()
+        this.tailFilter?.disconnect()
+        this.tailWetGain?.disconnect()
+        
         this.masterGain.disconnect()
     }
 }
