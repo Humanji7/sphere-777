@@ -2,33 +2,33 @@
 
 ## Molecules
 
-### M1: Infrastructure 🔴
-- [ ] Создать `/public/audio/`
-- [ ] Добавить feature flag в main.js
-- [ ] Mute SonicOrganism
+### M1: Infrastructure ✅
+- [x] Создать `/public/audio/`
+- [x] Добавить feature flag в main.js
+- [x] Mute SonicOrganism
 **Files:** 2 (main.js, folder)
-**Commit:** `M1: sample sound infrastructure`
+**Commit:** `M1: sample sound infrastructure` ✅
 
-### M2: Sample File ⚪
-- [ ] Найти на Freesound ambient pad
-- [ ] Скачать в `/public/audio/foundation.mp3`
+### M2: Sample File ✅
+- [x] Найти на Freesound ambient pad
+- [x] Скачать в `/public/audio/foundation.mp3`
 **Files:** 1 (audio file)
-**Commit:** `M2: add foundation sample`
+**Commit:** `M2: add foundation sample` ✅
 
-### M3: Basic Player ⚪
-- [ ] Создать `SampleSoundSystem.js`
-- [ ] constructor(audioContext)
-- [ ] loadSamples() — fetch + decode
-- [ ] _playLoop(buffer)
+### M3: Basic Player ✅
+- [x] Создать `SampleSoundSystem.js`
+- [x] constructor(audioContext)
+- [x] loadSamples() — fetch + decode
+- [x] _playLoop(buffer)
 **Files:** 1 (SampleSoundSystem.js)
-**Commit:** `M3: SampleSoundSystem basic player`
+**Commit:** `M3: SampleSoundSystem basic player` ✅
 
-### M4: Touch Integration ⚪
-- [ ] update(state) — play/stop по touch
-- [ ] Fade in/out (100ms ramp)
-- [ ] Подключить в main.js
+### M4: Touch Integration ✅
+- [x] update(state) — play/stop по touch
+- [x] Fade in/out (100ms ramp)
+- [x] Подключить в main.js
 **Files:** 2 (SampleSoundSystem.js, main.js)
-**Commit:** `M4: touch triggers sample playback`
+**Commit:** `M4: touch triggers sample playback` ✅
 
 ### 🔴 CHECKPOINT: MVP Test
 > Звучит лучше bee buzz? Если нет → M2 (другой сэмпл)
@@ -68,6 +68,6 @@
 ---
 
 ## Status
-- Current: M1 🔴
-- Done: —
+- Current: CHECKPOINT (MVP Test) 🔴
+- Done: M1, M2, M3, M4
 - Blocked: —
