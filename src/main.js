@@ -11,6 +11,7 @@ import { Sphere } from './Sphere.js'
 import { EffectConductor } from './EffectConductor.js'
 import { SoundManager } from './SoundManager.js'
 import { SonicOrganism } from './SonicOrganism.js'
+import { SampleSoundSystem } from './SampleSoundSystem.js'
 import { Eye } from './Eye.js'
 import { MemoryManager } from './MemoryManager.js'
 import { HapticManager } from './HapticManager.js'
@@ -23,7 +24,7 @@ import { CharacterPanel } from './CharacterPanel.js'
 
 // Feature flag: Sample-based sound system (replacing SonicOrganism oscillators)
 // Set to true when SampleSoundSystem is ready
-const USE_SAMPLE_SOUND = false
+const USE_SAMPLE_SOUND = true
 const MUTE_SONIC_ORGANISM = true  // Mute oscillator system while testing samples
 
 /**
@@ -197,6 +198,14 @@ class App {
             this.sonicOrganism.mute()
         }
 
+        // Initialize sample-based sound system (alternative to SonicOrganism)
+        if (USE_SAMPLE_SOUND) {
+            this.sampleSound = new SampleSoundSystem(this.soundManager.audioContext)
+            this.sampleSound.loadSamples().catch(err => {
+                console.error('[App] Failed to load samples:', err)
+            })
+        }
+
         // Initialize haptic feedback (Vibration API)
         this.hapticManager = new HapticManager()
         this.sphere.setHapticManager(this.hapticManager)
@@ -341,6 +350,13 @@ class App {
                     },
                     // Ghost traces for frozen grain loops
                     ghostTraces
+                }, elapsed)
+            }
+
+            // Update sample-based sound system
+            if (this.sampleSound) {
+                this.sampleSound.update({
+                    isActive: this.inputManager.isActive
                 }, elapsed)
             }
 
