@@ -21,6 +21,11 @@ import { TransformationManager } from './TransformationManager.js'
 import { BeetleShell } from './shells/BeetleShell.js'
 import { CharacterPanel } from './CharacterPanel.js'
 
+// Feature flag: Sample-based sound system (replacing SonicOrganism oscillators)
+// Set to true when SampleSoundSystem is ready
+const USE_SAMPLE_SOUND = false
+const MUTE_SONIC_ORGANISM = true  // Mute oscillator system while testing samples
+
 /**
  * Main application entry point
  * Orchestrates scene, camera, renderer, and modules
@@ -186,6 +191,11 @@ class App {
         // Initialize living sound system (shares AudioContext with SoundManager)
         this.sonicOrganism = new SonicOrganism(this.soundManager.audioContext)
         // this.sonicOrganism.setDebug(true)  // Uncomment for debug logging
+
+        // Mute oscillator system while developing sample-based replacement
+        if (MUTE_SONIC_ORGANISM) {
+            this.sonicOrganism.mute()
+        }
 
         // Initialize haptic feedback (Vibration API)
         this.hapticManager = new HapticManager()

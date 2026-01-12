@@ -1,31 +1,73 @@
-# Sphere-777: Living Organism
+# 🔴 HOOK: Sample Sound System
 
-## Проект
-Интерактивная 3D сфера как "живой организм" — автономное существо с эмоциями, дыханием, тактильной чувствительностью и idle-агенцией.
+## Molecules
 
-## Стек
-- **Frontend**: Vanilla JS + Three.js + WebGL Shaders
-- **Build**: Vite
-- **Deploy**: Vercel
+### M1: Infrastructure 🔴
+- [ ] Создать `/public/audio/`
+- [ ] Добавить feature flag в main.js
+- [ ] Mute SonicOrganism
+**Files:** 2 (main.js, folder)
+**Commit:** `M1: sample sound infrastructure`
 
-## Ключевые файлы
-- `src/Sphere.js` — главный класс, жесты и эмоции
-- `src/ParticleSystem.js` — частицы и шейдеры
-- `src/LivingCore.js` — биолюминесценция, внутреннее свечение
-- `src/IdleAgency.js` — автономное поведение при бездействии
-- `src/Eye.js` — глаз сферы
+### M2: Sample File ⚪
+- [ ] Найти на Freesound ambient pad
+- [ ] Скачать в `/public/audio/foundation.mp3`
+**Files:** 1 (audio file)
+**Commit:** `M2: add foundation sample`
 
-## Статус
-✅ Phase 1-2 Organic Life — DONE  
-✅ Idle Agency (Playful Character) — DONE
+### M3: Basic Player ⚪
+- [ ] Создать `SampleSoundSystem.js`
+- [ ] constructor(audioContext)
+- [ ] loadSamples() — fetch + decode
+- [ ] _playLoop(buffer)
+**Files:** 1 (SampleSoundSystem.js)
+**Commit:** `M3: SampleSoundSystem basic player`
 
-## Документация
-- `docs/SPHERE_ESSENCE.md` — философия
-- `docs/IMPLEMENTATION_ORGANIC_LIFE.md` — roadmap
-- `docs/HANDOFF_IDLE_AGENCY.md` — idle behaviors
+### M4: Touch Integration ⚪
+- [ ] update(state) — play/stop по touch
+- [ ] Fade in/out (100ms ramp)
+- [ ] Подключить в main.js
+**Files:** 2 (SampleSoundSystem.js, main.js)
+**Commit:** `M4: touch triggers sample playback`
 
-## Quick Start
-```bash
-npm install
-npm run dev
-```
+### 🔴 CHECKPOINT: MVP Test
+> Звучит лучше bee buzz? Если нет → M2 (другой сэмпл)
+
+### M5: Dynamics ⚪
+- [ ] Gain от proximity
+- [ ] Filter от trust (lowpass)
+**Files:** 1 (SampleSoundSystem.js)
+**Commit:** `M5: proximity/trust modulation`
+
+### M6: Glass Layer ⚪
+- [ ] Найти glass сэмпл
+- [ ] Второй источник в SampleSoundSystem
+- [ ] Gain от touchIntensity
+**Files:** 2 (audio file, SampleSoundSystem.js)
+**Commit:** `M6: glass resonance layer`
+
+### M7: Breath LFO ⚪
+- [ ] LFO oscillator (0.2Hz)
+- [ ] Модуляция master gain
+**Files:** 1 (SampleSoundSystem.js)
+**Commit:** `M7: breath modulation`
+
+### M8: Reverb Tail ⚪
+- [ ] Delay-based reverb или IR
+- [ ] Wet от holdDuration
+**Files:** 1-2 (SampleSoundSystem.js, [reverb_ir.wav])
+**Commit:** `M8: reverb tail on release`
+
+### M9: Cleanup ⚪
+- [ ] Убрать feature flag
+- [ ] Архивировать SonicOrganism.js
+- [ ] Обновить debug команды
+**Files:** 2-3
+**Commit:** `M9: cleanup old oscillator system`
+
+---
+
+## Status
+- Current: M1 🔴
+- Done: —
+- Blocked: —
