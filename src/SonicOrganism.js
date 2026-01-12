@@ -46,7 +46,7 @@ export class SonicOrganism {
             breathNoise: true,   // L1.5: White noise with async envelope
             formantVoice: true,  // L4: Vowel filters + vibrato
             spatial: true,       // L5: HRTF panner
-            subBass: true,       // L10: 82.5Hz warmth foundation
+            subBass: false,      // L10: Disabled - inaudible on mobile speakers
             reverb: true         // L11: Delay-based room simulation
         }
 
@@ -143,11 +143,9 @@ export class SonicOrganism {
         const gain = this.audioContext.createGain()
         gain.gain.value = baseAmplitude * 0.3  // Scale down for mixing
 
-        // Graduated detuning for organic "chorus" feel
-        // Minimal detune: 3-2-1 cents — just enough warmth, no buzz
-        const detuneCents = n <= 2 ? 3 : n <= 8 ? 2 : 1
-        const detune = (Math.random() - 0.5) * detuneCents * 2
-        oscillator.detune.value = detune
+        // Detune disabled — was causing "bee buzz" on mobile
+        // TODO: experiment with subtle detune (0.5-1 cent) if sound feels "dead"
+        oscillator.detune.value = 0
 
         // Connect
         oscillator.connect(gain)
@@ -662,6 +660,8 @@ export class SonicOrganism {
     // ═══════════════════════════════════════════════════════════════════════
 
     _initSubBass() {
+        if (!this.layerEnabled.subBass) return
+
         this.subBassOsc = this.audioContext.createOscillator()
         this.subBassOsc.type = 'sine'
         this.subBassOsc.frequency.value = 82.5  // Octave below 165Hz

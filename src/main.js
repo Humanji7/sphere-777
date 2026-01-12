@@ -190,12 +190,10 @@ class App {
         this.sphere.setSoundManager(this.soundManager)
 
         // Initialize living sound system (shares AudioContext with SoundManager)
-        this.sonicOrganism = new SonicOrganism(this.soundManager.audioContext)
-        // this.sonicOrganism.setDebug(true)  // Uncomment for debug logging
-
-        // Mute oscillator system while developing sample-based replacement
-        if (MUTE_SONIC_ORGANISM) {
-            this.sonicOrganism.mute()
+        // Disabled: SonicOrganism replaced by SampleSoundSystem
+        if (!MUTE_SONIC_ORGANISM) {
+            this.sonicOrganism = new SonicOrganism(this.soundManager.audioContext)
+            // this.sonicOrganism.setDebug(true)  // Uncomment for debug logging
         }
 
         // Initialize sample-based sound system (alternative to SonicOrganism)
@@ -331,7 +329,7 @@ class App {
             // ═══════════════════════════════════════════════════════════
             // SONIC ORGANISM: Continuous sound synthesis every frame
             // ═══════════════════════════════════════════════════════════
-            if (this.sonicOrganism) {
+            if (this.sonicOrganism && !MUTE_SONIC_ORGANISM) {
                 const inputState = this.inputManager.getState()
                 this.sonicOrganism.update({
                     trustIndex: this.memoryManager.trustIndex,
@@ -355,9 +353,15 @@ class App {
 
             // Update sample-based sound system
             if (this.sampleSound) {
+                const inputState = this.inputManager.getState()
                 this.sampleSound.update({
-                    isActive: this.inputManager.isActive
+                    isActive: this.inputManager.isActive,
+                    touchIntensity: inputState.touchIntensity || 0,
+                    velocity: inputState.velocity || 0
                 }, elapsed)
+
+                // Update debug UI
+                this._updateSoundDebug(elapsed)
             }
 
             // Dynamic bloom based on emotional state
@@ -393,6 +397,47 @@ class App {
 
         // Render with post-processing
         this.composer.render()
+    }
+
+    /**
+     * Update sound debug panel with LFO values
+     */
+    _updateSoundDebug(elapsed) {
+        if (!this.sampleSound) return
+
+        // Get debug panel elements (cache them on first call)
+        if (!this._debugElements) {
+            const panel = document.getElementById('sound-debug')
+            if (!panel) return
+
+            // Show panel
+            panel.classList.remove('hidden')
+
+            this._debugElements = {
+                ocean: document.getElementById('lfo-ocean'),
+                breath: document.getElementById('lfo-breath'),
+                pulse: document.getElementById('lfo-pulse'),
+                shimmer: document.getElementById('lfo-shimmer'),
+                drift: document.getElementById('lfo-drift'),
+                status: document.getElementById('debug-status')
+            }
+        }
+
+        const debug = this.sampleSound.getDebugInfo(elapsed)
+        const els = this._debugElements
+
+        // Update LFO bars
+        if (els.ocean) els.ocean.style.width = `${debug.lfo.ocean * 100}%`
+        if (els.breath) els.breath.style.width = `${debug.lfo.breath * 100}%`
+        if (els.pulse) els.pulse.style.width = `${debug.lfo.pulse * 100}%`
+        if (els.shimmer) els.shimmer.style.width = `${debug.lfo.shimmer * 100}%`
+        if (els.drift) els.drift.style.width = `${debug.lfo.drift * 100}%`
+
+        // Update status
+        if (els.status) {
+            els.status.textContent = debug.isPlaying ? `PLAYING (${(debug.intensity * 100).toFixed(0)}%)` : 'idle'
+            els.status.className = 'debug-status' + (debug.isPlaying ? ' playing' : '')
+        }
     }
 
     dispose() {

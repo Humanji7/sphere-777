@@ -268,3 +268,86 @@ body {
   background: rgba(255, 255, 255, 0.3);
   border-radius: 2px;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   SOUND DEBUG PANEL
+   ═══════════════════════════════════════════════════════════ */
+
+#sound-debug {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px;
+  z-index: 200;
+  font-family: monospace;
+  font-size: 11px;
+  min-width: 140px;
+}
+
+#sound-debug.hidden {
+  display: none;
+}
+
+.debug-title {
+  color: #0f0;
+  margin-bottom: 8px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.lfo-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lfo-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lfo-row span {
+  color: rgba(255, 255, 255, 0.6);
+  width: 50px;
+  font-size: 10px;
+}
+
+.lfo-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.lfo-fill {
+  height: 100%;
+  background: #0f0;
+  border-radius: 4px;
+  transition: width 0.05s linear;
+}
+
+#lfo-ocean .lfo-fill, #lfo-ocean { background: #00bcd4; }
+#lfo-breath .lfo-fill, #lfo-breath { background: #4caf50; }
+#lfo-pulse .lfo-fill, #lfo-pulse { background: #ff9800; }
+#lfo-shimmer .lfo-fill, #lfo-shimmer { background: #e91e63; }
+#lfo-drift .lfo-fill, #lfo-drift { background: #9c27b0; }
+
+.lfo-bar { background: rgba(255, 255, 255, 0.1) !important; }
+
+.debug-status {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: #888;
+  text-align: center;
+}
+
+.debug-status.playing {
+  color: #0f0;
+}

@@ -52,6 +52,19 @@
     <div id="swipe-hint" class="hidden">
       <div class="hint-line"></div>
     </div>
+
+    <!-- Sound Debug Panel -->
+    <div id="sound-debug" class="hidden">
+      <div class="debug-title">LFO Debug</div>
+      <div class="lfo-bars">
+        <div class="lfo-row"><span>ocean</span><div class="lfo-bar"><div class="lfo-fill" id="lfo-ocean"></div></div></div>
+        <div class="lfo-row"><span>breath</span><div class="lfo-bar"><div class="lfo-fill" id="lfo-breath"></div></div></div>
+        <div class="lfo-row"><span>pulse</span><div class="lfo-bar"><div class="lfo-fill" id="lfo-pulse"></div></div></div>
+        <div class="lfo-row"><span>shimmer</span><div class="lfo-bar"><div class="lfo-fill" id="lfo-shimmer"></div></div></div>
+        <div class="lfo-row"><span>drift</span><div class="lfo-bar"><div class="lfo-fill" id="lfo-drift"></div></div></div>
+      </div>
+      <div class="debug-status" id="debug-status">idle</div>
+    </div>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>
