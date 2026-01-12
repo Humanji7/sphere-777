@@ -32,7 +32,7 @@ graph TB
     subgraph Effects["Effects & Audio"]
         conductor["EffectConductor.js"]
         sound["SoundManager.js"]
-        sonic["SonicOrganism.js"]
+        sampleSound["SampleSoundSystem.js"]
     end
     
     main --> sphere
@@ -88,7 +88,7 @@ graph TB
 |--------|-----------------|
 | `EffectConductor.js` | Стохастические эффекты |
 | `SoundManager.js` | Web Audio base |
-| `SonicOrganism.js` | 7-слойный процедурный звук |
+| `SampleSoundSystem.js` | Sample-based звук с LFO модуляцией |
 
 ---
 
@@ -151,7 +151,7 @@ sphere-777/
     ├── MemoryManager.js
     ├── EffectConductor.js
     ├── SoundManager.js
-    └── SonicOrganism.js
+    └── SampleSoundSystem.js
 ```
 
 ---

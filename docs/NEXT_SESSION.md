@@ -40,8 +40,11 @@
   - Slow fade-out (3.0) при уходе курсора
   - Плавный blend между cursor-guided и auto-rotation
 
-### Audio
-- Sonic Organism — 7-слойный звук
+### Audio ✅
+- **SampleSoundSystem** — sample-based звук с LFO модуляцией
+  - 2 слоя: foundation (low pad), glass (high shimmer)
+  - 5 LFO: ocean, breath, pulse, shimmer, drift
+  - 4 типа модуляции: gain, pan, filter, pitch
 
 ---
 
@@ -159,7 +162,7 @@ gap > неделя → особая реакция
 
 #### 3.5 Процедурный звуковой язык
 ```
-База: 5-10 тонов/текстур в SonicOrganism
+База: SampleSoundSystem + дополнительные сэмплы
 Комбинаторика: pitch + duration + envelope = "фраза"
 Контекст: приветствие, прощание, радость, любопытство
 Личность влияет: мягкая сфера = мягче тембр

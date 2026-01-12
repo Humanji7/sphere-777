@@ -10,7 +10,6 @@ import { ParticleSystem } from './ParticleSystem.js'
 import { Sphere } from './Sphere.js'
 import { EffectConductor } from './EffectConductor.js'
 import { SoundManager } from './SoundManager.js'
-import { SonicOrganism } from './SonicOrganism.js'
 import { SampleSoundSystem } from './SampleSoundSystem.js'
 import { Eye } from './Eye.js'
 import { MemoryManager } from './MemoryManager.js'
@@ -21,11 +20,6 @@ import { IdleAgency } from './IdleAgency.js'
 import { TransformationManager } from './TransformationManager.js'
 import { BeetleShell } from './shells/BeetleShell.js'
 import { CharacterPanel } from './CharacterPanel.js'
-
-// Feature flag: Sample-based sound system (replacing SonicOrganism oscillators)
-// Set to true when SampleSoundSystem is ready
-const USE_SAMPLE_SOUND = true
-const MUTE_SONIC_ORGANISM = true  // Mute oscillator system while testing samples
 
 /**
  * Main application entry point
@@ -189,20 +183,11 @@ class App {
         this.soundManager = new SoundManager()
         this.sphere.setSoundManager(this.soundManager)
 
-        // Initialize living sound system (shares AudioContext with SoundManager)
-        // Disabled: SonicOrganism replaced by SampleSoundSystem
-        if (!MUTE_SONIC_ORGANISM) {
-            this.sonicOrganism = new SonicOrganism(this.soundManager.audioContext)
-            // this.sonicOrganism.setDebug(true)  // Uncomment for debug logging
-        }
-
-        // Initialize sample-based sound system (alternative to SonicOrganism)
-        if (USE_SAMPLE_SOUND) {
-            this.sampleSound = new SampleSoundSystem(this.soundManager.audioContext)
-            this.sampleSound.loadSamples().catch(err => {
-                console.error('[App] Failed to load samples:', err)
-            })
-        }
+        // Initialize sample-based sound system
+        this.sampleSound = new SampleSoundSystem(this.soundManager.audioContext)
+        this.sampleSound.loadSamples().catch(err => {
+            console.error('[App] Failed to load samples:', err)
+        })
 
         // Initialize haptic feedback (Vibration API)
         this.hapticManager = new HapticManager()
@@ -323,35 +308,12 @@ class App {
                 this.hapticManager.update(delta, elapsed)
             }
 
-            // Collect traces once per frame (used by both SonicOrganism and ParticleSystem)
+            // Collect traces once per frame (used by ParticleSystem)
             const ghostTraces = this.memoryManager.getActiveGhostTraces()
 
             // ═══════════════════════════════════════════════════════════
-            // SONIC ORGANISM: Continuous sound synthesis every frame
+            // SAMPLE SOUND SYSTEM: Living sound with LFO modulation
             // ═══════════════════════════════════════════════════════════
-            if (this.sonicOrganism && !MUTE_SONIC_ORGANISM) {
-                const inputState = this.inputManager.getState()
-                this.sonicOrganism.update({
-                    trustIndex: this.memoryManager.trustIndex,
-                    proximity: this.sphere.currentProximity ?? 0,
-                    colorProgress: this.sphere.currentColorProgress ?? 0,
-                    emotionalState: this.sphere.currentState ?? 'PEACE',
-                    isActive: this.inputManager.isActive,
-                    // L3: Touch state for granular membrane
-                    touch: {
-                        x: inputState.position.x,
-                        y: inputState.position.y,
-                        velocity: inputState.velocity,
-                        intensity: inputState.touchIntensity,
-                        holdDuration: inputState.holdDuration,
-                        gestureType: inputState.gestureType
-                    },
-                    // Ghost traces for frozen grain loops
-                    ghostTraces
-                }, elapsed)
-            }
-
-            // Update sample-based sound system
             if (this.sampleSound) {
                 const inputState = this.inputManager.getState()
                 this.sampleSound.update({
@@ -467,25 +429,3 @@ window.returnToOrganic = () => {
     }
 }
 
-// 🔬 Sound debugging commands
-// Usage from browser console:
-//   isolateSound('spectral')     - hear only L1 (110Hz harmonics + detune)
-//   isolateSound('breathNoise')  - hear only L1.5 (filtered white noise)
-//   isolateSound('formantVoice') - hear only L4 (vowel filters + vibrato)
-//   isolateSound('spatial')      - this won't make sound alone, it's just panner
-//   isolateSound()               - enable ALL layers again
-//   setSound('breathNoise', false) - disable breath layer only
-window.isolateSound = (layer) => {
-    if (window.app.sonicOrganism) {
-        window.app.sonicOrganism.isolateLayer(layer)
-    } else {
-        console.warn('[DEBUG] SonicOrganism not initialized. Click to start first!')
-    }
-}
-window.setSound = (layer, enabled) => {
-    if (window.app.sonicOrganism) {
-        window.app.sonicOrganism.setLayer(layer, enabled)
-    } else {
-        console.warn('[DEBUG] SonicOrganism not initialized. Click to start first!')
-    }
-}

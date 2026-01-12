@@ -40,19 +40,19 @@ npm run dev -- --host  # + мобильный доступ
 
 ```
 src/
-├── main.js           # Entry, RAF loop
-├── Sphere.js         # Эмоции, координация
-├── ParticleSystem.js # GPU, шейдеры
-├── Eye.js            # Глаз
-├── LivingCore.js     # 3-слойное свечение
-├── OrganicTicks.js   # Микро-движения
-├── IdleAgency.js     # Инициатива
-├── HapticManager.js  # Вибрация
-├── InputManager.js   # Input
-├── MemoryManager.js  # Trust/Memory
+├── main.js             # Entry, RAF loop
+├── Sphere.js           # Эмоции, координация
+├── ParticleSystem.js   # GPU, шейдеры
+├── Eye.js              # Глаз
+├── LivingCore.js       # 3-слойное свечение
+├── OrganicTicks.js     # Микро-движения
+├── IdleAgency.js       # Инициатива
+├── HapticManager.js    # Вибрация
+├── InputManager.js     # Input
+├── MemoryManager.js    # Trust/Memory
 ├── EffectConductor.js
 ├── SoundManager.js
-└── SonicOrganism.js
+└── SampleSoundSystem.js  # Sample-based звук с LFO
 ```
 
 ---
