@@ -1,6 +1,7 @@
 # Архитектура: SPHERE-777
 
 > **Stage 8** — Living Organism with Idle Agency
+> **Платформа:** Web → Mobile (Capacitor)
 
 ---
 
@@ -169,4 +170,35 @@ sphere-777/
 
 ---
 
-*Updated: 2026-01-11 — Stage 8 Living Organism*
+## Roadmap
+
+### Stage 9: Mobile (Capacitor)
+```
+npm install @capacitor/core @capacitor/cli
+npx cap init
+npx cap add android
+```
+- APK для Play Store
+- Нативная вибрация через Capacitor Haptics
+- localStorage → Capacitor Preferences
+
+### Stage 10: Onboarding
+- Сценарий "Пробуждение"
+- Без слов, без туториала
+
+### Stage 11: Cyberpunk UI
+- Техно-стеклянные пузырьки
+- Меню трансформаций
+
+### Stage 12: Personalization
+- 5 осей персонализации
+- Seed-based уникальность
+
+### Future: Visual Enrichment
+- Психоделик-эстетика
+- Фрактальные анимации
+- Частицы как формы
+
+---
+
+*Updated: 2026-01-13 — Mobile Roadmap*
