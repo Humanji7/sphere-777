@@ -114,8 +114,8 @@ export class OnboardingManager {
                 break
         }
 
-        // Global timeout fallback (15 seconds max for any state)
-        if (stateTime > 15000 && this.currentState !== STATES.LIVING) {
+        // Global timeout fallback (10 seconds max for any state)
+        if (stateTime > 10000 && this.currentState !== STATES.LIVING) {
             console.warn('[Onboarding] Global timeout — forcing to OPENING')
             this._transitionTo(STATES.OPENING)
         }
@@ -159,10 +159,10 @@ export class OnboardingManager {
     _enterVoid() {
         this._announce('Загрузка...')
 
-        // Duration varies to feel organic
+        // Quick — just darkness moment (total onboarding ~10 sec)
         const duration = this.reducedMotion
-            ? this._randomRange(500, 800)
-            : this._randomRange(1500, 3000)
+            ? this._randomRange(300, 500)
+            : this._randomRange(600, 1000)
 
         this.stateData = {
             duration,
@@ -176,10 +176,10 @@ export class OnboardingManager {
 
     _updateVoid(delta, stateTime) {
         // Exit condition: audio ready AND duration elapsed
-        const audioCondition = this.audioReady || this.audioFailed || stateTime > 2000
+        const audioCondition = this.audioReady || this.audioFailed || stateTime > 1000
         const durationCondition = stateTime >= this.stateData.duration
 
-        if ((audioCondition && durationCondition) || stateTime > 5000) {
+        if ((audioCondition && durationCondition) || stateTime > 1500) {
             this._transitionTo(STATES.RESONANCE)
         }
     }
@@ -196,8 +196,8 @@ export class OnboardingManager {
     _enterResonance() {
         this._announce('Что-то просыпается...')
 
-        // Animation parameters
-        const animDuration = this.reducedMotion ? 0 : 2500
+        // Animation parameters — faster for 10 sec total onboarding
+        const animDuration = this.reducedMotion ? 0 : 1800
 
         this.stateData = {
             // Opacity animation
@@ -260,13 +260,13 @@ export class OnboardingManager {
         const opacityReached = data.particleOpacity.current >= data.exitThreshold.opacity
         const glowReached = data.coreGlow.current >= data.exitThreshold.glow
 
-        // Exit after animation complete or timeout
-        if ((opacityReached && glowReached) || stateTime > 6000) {
+        // Exit after animation complete or timeout (faster for 10 sec total)
+        if ((opacityReached && glowReached) || stateTime > 2500) {
             this._transitionTo(STATES.MEETING)
         }
 
         // Reduced motion fast exit
-        if (this.reducedMotion && stateTime > 500) {
+        if (this.reducedMotion && stateTime > 300) {
             this._transitionTo(STATES.MEETING)
         }
     }
@@ -286,10 +286,10 @@ export class OnboardingManager {
     _enterMeeting() {
         this._announce('Оно вас заметило.')
 
-        // Phase durations
-        const focusingDuration = this.reducedMotion ? 200 : this._randomRange(800, 1200)
-        const searchingDuration = this.reducedMotion ? 0 : this._randomRange(1000, 1500)
-        const sacredPauseDuration = 400
+        // Phase durations — faster for 10 sec total onboarding
+        const focusingDuration = this.reducedMotion ? 150 : this._randomRange(600, 900)
+        const searchingDuration = this.reducedMotion ? 0 : this._randomRange(800, 1200)
+        const sacredPauseDuration = 300
 
         this.stateData = {
             phase: 'focusing',
@@ -390,15 +390,16 @@ export class OnboardingManager {
                 // Both freeze — moment of mutual recognition
                 const phaseTime = stateTime - data.phaseStartTime
                 if (phaseTime >= durations.sacredPause) {
-                    this._transitionTo(STATES.THRESHOLD)
+                    // Skip THRESHOLD — go directly to OPENING (10 sec onboarding)
+                    this._transitionTo(STATES.OPENING)
                 }
                 break
             }
         }
 
-        // Global timeout
-        if (stateTime > 5000) {
-            this._transitionTo(STATES.THRESHOLD)
+        // Global timeout — skip THRESHOLD, go to OPENING
+        if (stateTime > 3500) {
+            this._transitionTo(STATES.OPENING)
         }
     }
 
@@ -565,23 +566,23 @@ export class OnboardingManager {
 
     _enterReturning() {
         this.stateData = {
-            duration: this._randomRange(1500, 2500),
+            duration: this._randomRange(1200, 1800),  // Faster for returning users
             recognitionBlinkDone: false
         }
 
         // Start from dark
         this._setOpacity(0)
 
-        // Quick darkness (300ms)
+        // Quick darkness (200ms)
         this._setTimeout(() => {
-            // Glow appears (500ms)
+            // Glow appears
             this.livingCore?.setGlobalOpacity(0.5)
-        }, 300)
+        }, 200)
 
         this._setTimeout(() => {
-            // Particles fade in (800ms)
+            // Particles fade in
             this.particleSystem?.setGlobalOpacity(0.7)
-        }, 500)
+        }, 350)
 
         this._setTimeout(() => {
             // Eye appears — already knows where you are
@@ -590,13 +591,13 @@ export class OnboardingManager {
             // Recognition blink — "I remember you"
             this.eye?.blink?.()
             this.stateData.recognitionBlinkDone = true
-        }, 800)
+        }, 600)
     }
 
     _updateReturning(delta, stateTime) {
-        // Smooth fade to full
-        if (stateTime > 800) {
-            const fadeProgress = Math.min(1, (stateTime - 800) / 700)
+        // Smooth fade to full (faster timing)
+        if (stateTime > 600) {
+            const fadeProgress = Math.min(1, (stateTime - 600) / 500)
             const eased = 1 - Math.pow(1 - fadeProgress, 2)
 
             this.particleSystem?.setGlobalOpacity(0.7 + 0.3 * eased)
