@@ -124,6 +124,7 @@ uniform float uPhase;
 uniform float uTime;
 uniform vec3 uTouchPos;
 uniform float uTouchIntensity;
+uniform float uGlobalOpacity;  // For onboarding fade-in
 
 varying vec3 vNormal;
 varying vec3 vPosition;
@@ -131,24 +132,27 @@ varying float vDisplacement;
 
 void main() {
     float glow = sin(uPhase * 6.28318) * 0.2 + 0.8;
-    
+
     // Softer edge fade for organic look
     float edgeFade = 1.0 - pow(abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 0.7);
-    
+
     // Subtle displacement brightness
     float dispBright = 1.0 + vDisplacement * 1.5;
-    
+
     // Touch glow - warm response
     float touchDist = distance(vPosition, uTouchPos);
     float touchGlow = (1.0 - smoothstep(0.0, 1.2, touchDist)) * uTouchIntensity;
-    
+
     vec3 color = uBaseColor * glow * dispBright * uIntensity;
     color += vec3(1.0, 0.95, 0.85) * touchGlow * 0.4;
-    
+
     // Subtle alpha - layers blend softly
     float alpha = (glow * 0.3 + touchGlow * 0.25) * edgeFade;
     alpha = clamp(alpha, 0.0, 0.6);
-    
+
+    // Global opacity for onboarding
+    alpha *= uGlobalOpacity;
+
     gl_FragColor = vec4(color, alpha);
 }
 `
@@ -234,7 +238,8 @@ export class LivingCore {
                     uBaseColor: { value: cfg.color.clone() },
                     uIntensity: { value: cfg.intensity },
                     uTouchPos: { value: new THREE.Vector3() },
-                    uTouchIntensity: { value: 0 }
+                    uTouchIntensity: { value: 0 },
+                    uGlobalOpacity: { value: 1.0 }  // For onboarding
                 },
                 side: THREE.DoubleSide,
                 blending: THREE.AdditiveBlending,
@@ -325,6 +330,17 @@ export class LivingCore {
 
         for (const layer of Object.values(this.layers)) {
             layer.phase = THREE.MathUtils.lerp(layer.phase, targetPhase, sync)
+        }
+    }
+
+    /**
+     * Set global opacity (for onboarding fade-in)
+     * @param {number} opacity - 0 (invisible) to 1 (fully visible)
+     */
+    setGlobalOpacity(opacity) {
+        const value = Math.max(0, Math.min(1, opacity))
+        for (const mesh of this.group.children) {
+            mesh.material.uniforms.uGlobalOpacity.value = value
         }
     }
 

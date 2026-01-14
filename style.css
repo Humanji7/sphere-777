@@ -31,46 +31,6 @@ body {
   /* Prevent browser gestures on canvas */
 }
 
-#click-to-start {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.9);
-  z-index: 10;
-  cursor: pointer;
-  transition: opacity 0.5s ease;
-}
-
-#click-to-start.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-#click-to-start span {
-  color: #2D1B4E;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: clamp(1rem, 4vw, 1.5rem);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  animation: pulse 3s ease-in-out infinite;
-}
-
-@keyframes pulse {
-
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-
-  50% {
-    opacity: 1;
-  }
-}
 
 /* ═══════════════════════════════════════════════════════════
    CHARACTER PANEL (v3)
@@ -275,7 +235,7 @@ body {
 
 #sound-debug {
   position: absolute;
-  top: 10px;
+  top: 70px;  /* Below SoundToggle (44px + 16px padding + gap) */
   left: 10px;
   background: rgba(0, 0, 0, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -398,4 +358,262 @@ body {
 @keyframes glitch-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ACCESSIBILITY
+   ═══════════════════════════════════════════════════════════ */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UI LAYER — Glassmorphism Controls
+   ═══════════════════════════════════════════════════════════ */
+
+.ui-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 250;  /* Above debug panel (200) */
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.ui-layer.visible {
+  opacity: 1;
+}
+
+.ui-layer > * {
+  pointer-events: auto;
+}
+
+.ui-top-left {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+}
+
+.ui-top-right {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+.ui-bottom-center {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GLASS BUTTON — Base Component
+   ═══════════════════════════════════════════════════════════ */
+
+.glass-button {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  outline: none;
+
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+
+  transition: opacity 0.2s, transform 0.15s, background 0.2s;
+}
+
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.glass-button:active {
+  opacity: 0.7;
+  transform: scale(0.95);
+}
+
+.glass-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}
+
+.glass-button svg {
+  width: 20px;
+  height: 20px;
+  fill: rgba(255, 255, 255, 0.9);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SETTINGS MODAL — Compact Mobile Dropdown
+   ═══════════════════════════════════════════════════════════ */
+
+.settings-modal {
+  position: fixed;
+  top: 56px;
+  right: 16px;
+  min-width: 100px;
+  z-index: 260;
+
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+
+  opacity: 0;
+  transform: translateY(-8px) scale(0.95);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.settings-modal.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* Menu items */
+.modal-items {
+  padding: 4px;
+}
+
+.modal-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.modal-item:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.modal-item svg {
+  width: 14px;
+  height: 14px;
+  fill: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+.modal-item span {
+  color: rgba(255, 255, 255, 0.8);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* Sub-views (About, Credits) */
+.modal-view {
+  padding: 12px;
+  text-align: center;
+  position: relative;
+}
+
+.view-title {
+  color: rgba(255, 255, 255, 0.9);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.view-sub {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 9px;
+  margin-top: 2px;
+}
+
+.view-text {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  margin: 2px 0;
+}
+
+.view-back {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.view-back:active {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ENTITY SWITCHER
+   ═══════════════════════════════════════════════════════════ */
+
+.entity-switcher {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+}
+
+.entity-switcher svg {
+  width: 24px;
+  height: 24px;
+}
+
+.entity-switcher.has-new-entity {
+  animation: entity-glow 2s ease-in-out infinite;
+}
+
+@keyframes entity-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px rgba(139, 92, 246, 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-button {
+    transition: none;
+  }
+
+  .ui-layer {
+    transition: none;
+  }
+
+  .settings-modal {
+    transition: none;
+  }
+
+  .entity-switcher.has-new-entity {
+    animation: none;
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.5);
+  }
 }

@@ -20,6 +20,8 @@ import { IdleAgency } from './IdleAgency.js'
 import { TransformationManager } from './TransformationManager.js'
 import { BeetleShell } from './shells/BeetleShell.js'
 import { CharacterPanel } from './CharacterPanel.js'
+import { OnboardingManager } from './OnboardingManager.js'
+import { UIManager } from './ui/UIManager.js'
 
 /**
  * Main application entry point
@@ -28,7 +30,6 @@ import { CharacterPanel } from './CharacterPanel.js'
 class App {
     constructor() {
         this.canvas = document.getElementById('canvas')
-        this.clickToStart = document.getElementById('click-to-start')
 
         this.isStarted = false
         this.clock = new THREE.Clock()
@@ -40,6 +41,7 @@ class App {
         this._initThree()
         this._initPostProcessing()
         this._initModules()
+        this._initOnboarding()
         this._bindEvents()
         this._animate()
     }
@@ -203,22 +205,56 @@ class App {
         // this.transformManager.DEBUG = true  // Uncomment for debug logging
     }
 
+    _initOnboarding() {
+        // UI Manager (hidden until onboarding complete)
+        this.uiManager = new UIManager({
+            onSoundToggle: (muted) => {
+                console.log('[App] Sound toggled:', muted ? 'muted' : 'unmuted')
+            },
+            onEntitySwitch: (entityId) => {
+                console.log('[App] Entity switched:', entityId)
+            }
+        })
+        this.uiManager.hide()
+
+        // Onboarding Manager
+        this.onboarding = new OnboardingManager({
+            scene: this.scene,
+            camera: this.camera,
+            particleSystem: this.particleSystem,
+            livingCore: this.livingCore,
+            eye: this.eye,
+            onComplete: () => this._onOnboardingComplete()
+        })
+
+        // Start onboarding
+        this.onboarding.start()
+    }
+
+    _onOnboardingComplete() {
+        // Start the main experience
+        this._start()
+
+        // Connect UI to managers
+        this.uiManager.setSoundManager(this.soundManager)
+        this.uiManager.setSampleSound(this.sampleSound)
+        this.uiManager.setMemoryManager(this.memoryManager)
+        this.uiManager.setTransformManager(this.transformManager)
+
+        // Show UI after short delay
+        setTimeout(() => {
+            this.uiManager.show()
+        }, 1500)
+    }
+
     _bindEvents() {
         // Resize
         window.addEventListener('resize', this._onResize.bind(this))
-
-        // Click to start
-        this.clickToStart.addEventListener('click', this._start.bind(this))
-        this.clickToStart.addEventListener('touchstart', (e) => {
-            e.preventDefault()
-            this._start()
-        })
     }
 
     _start() {
         if (this.isStarted) return
         this.isStarted = true
-        this.clickToStart.classList.add('hidden')
 
         // Initialize audio after user interaction (respects autoplay policy)
         this.soundManager = new SoundManager()
@@ -280,6 +316,11 @@ class App {
 
         // Update input
         this.inputManager.update(delta)
+
+        // Update onboarding (if active)
+        if (this.onboarding && !this.onboarding.isComplete()) {
+            this.onboarding.update(delta, elapsed)
+        }
 
         // Delegate all behavior to the Sphere orchestrator
         if (this.isStarted) {

@@ -699,7 +699,9 @@ export class ParticleSystem {
         uniform float uSensitivityWarmth;   // Warm color shift for sensitive zones
         // Transformation
         uniform float uTransformFade;       // 1.0 = visible, 0 = hidden during shell transition
-        
+        // Global opacity (for onboarding fade-in)
+        uniform float uGlobalOpacity;       // 1.0 = visible, 0 = hidden
+
         varying float vType;
         varying float vSeed;
         varying float vBleedPhase;
@@ -880,7 +882,10 @@ export class ParticleSystem {
           
           // TRANSFORMATION FADE: particles fade during shell transitions
           alpha *= uTransformFade;
-          
+
+          // GLOBAL OPACITY: for onboarding fade-in
+          alpha *= uGlobalOpacity;
+
           gl_FragColor = vec4(color, alpha);
         }
     `
@@ -946,7 +951,9 @@ export class ParticleSystem {
         uSensitivityContrast: { value: 1.0 },
         uSensitivityWarmth: { value: 0.2 },
         // Transformation fade (shells)
-        uTransformFade: { value: 1.0 }  // 1.0 = visible, 0 = hidden
+        uTransformFade: { value: 1.0 },  // 1.0 = visible, 0 = hidden
+        // Global opacity (onboarding)
+        uGlobalOpacity: { value: 1.0 }   // 1.0 = visible, 0 = hidden
       },
       vertexShader: this._generateVertexShader(),
       fragmentShader: this._generateFragmentShader(),
@@ -1344,6 +1351,14 @@ export class ParticleSystem {
    */
   setTransformFade(fade) {
     this.material.uniforms.uTransformFade.value = Math.max(0, Math.min(1, fade))
+  }
+
+  /**
+   * Set global opacity (for onboarding fade-in)
+   * @param {number} opacity - 0 (invisible) to 1 (fully visible)
+   */
+  setGlobalOpacity(opacity) {
+    this.material.uniforms.uGlobalOpacity.value = Math.max(0, Math.min(1, opacity))
   }
 
   /**

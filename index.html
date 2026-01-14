@@ -10,10 +10,10 @@
 
 <body>
   <div id="app">
-    <div id="click-to-start">
-      <span>Нажми, чтобы войти</span>
-    </div>
     <canvas id="canvas"></canvas>
+
+    <!-- Screen reader announcer for onboarding -->
+    <div id="onboarding-announcer" aria-live="polite" class="sr-only"></div>
 
     <!-- Character Panel (swipe up to open) -->
     <div id="character-panel" class="hidden">

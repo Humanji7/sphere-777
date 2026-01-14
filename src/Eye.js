@@ -305,6 +305,7 @@ export class Eye {
         uniform float uListeningTime;
         uniform float uEmotionalState;
         uniform float uSoulSparkPhase;
+        uniform float uBlur;  // 0 = sharp, 1 = fully blurred
         
         varying float vType;
         varying float vRingIndex;
@@ -448,7 +449,9 @@ export class Eye {
             baseSize *= 1.2;
           }
           
-          gl_PointSize = baseSize;
+          // Blur effect: increase size to create soft focus
+          float blurSize = baseSize * (1.0 + uBlur * 2.0);
+          gl_PointSize = blurSize;
         }
     `
   }
@@ -464,7 +467,9 @@ export class Eye {
         uniform float uAuraIntensity;
         uniform float uEmotionalState;
         uniform float uBlinkVelocity;
-        
+        uniform float uGlobalOpacity;  // For onboarding fade-in
+        uniform float uBlur;           // 0 = sharp, 1 = fully blurred
+
         varying float vType;
         varying float vRingIndex;
         varying float vSeed;
@@ -587,7 +592,13 @@ export class Eye {
           if (vType < 2.5) {
             alpha *= 1.0 - vBlinkCover;
           }
-          
+
+          // Blur effect: reduce alpha for soft, unfocused look
+          alpha *= 1.0 - uBlur * 0.6;
+
+          // Global opacity for onboarding
+          alpha *= uGlobalOpacity;
+
           gl_FragColor = vec4(color, alpha);
         }
     `
@@ -612,7 +623,9 @@ export class Eye {
         uAuraIntensity: { value: 0.2 },
         uListeningTime: { value: 0 },
         uEmotionalState: { value: 0 },
-        uSoulSparkPhase: { value: 0 }
+        uSoulSparkPhase: { value: 0 },
+        uGlobalOpacity: { value: 1.0 },  // For onboarding
+        uBlur: { value: 0 }              // 0 = sharp, 1 = blurred
       },
       vertexShader: this._generateVertexShader(),
       fragmentShader: this._generateFragmentShader(),
@@ -987,6 +1000,22 @@ export class Eye {
    */
   getMesh() {
     return this.mesh
+  }
+
+  /**
+   * Set global opacity (for onboarding fade-in)
+   * @param {number} opacity - 0 (invisible) to 1 (fully visible)
+   */
+  setGlobalOpacity(opacity) {
+    this.material.uniforms.uGlobalOpacity.value = Math.max(0, Math.min(1, opacity))
+  }
+
+  /**
+   * Set blur amount (for onboarding "awakening" effect)
+   * @param {number} blur - 0 (sharp) to 1 (fully blurred)
+   */
+  setBlur(blur) {
+    this.material.uniforms.uBlur.value = Math.max(0, Math.min(1, blur))
   }
 
   /**
