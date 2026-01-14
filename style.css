@@ -599,6 +599,133 @@ body {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   EMOTION RING
+   ═══════════════════════════════════════════════════════════ */
+
+.entity-wrapper {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+
+.entity-wrapper .glass-button {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.emotion-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+
+  /* Smooth transitions between emotions */
+  transition: opacity 0.3s ease;
+
+  /* Modern: conic-gradient with mask */
+  background: conic-gradient(
+    from 0deg,
+    var(--ring-color),
+    transparent 30%,
+    var(--ring-color) 60%,
+    transparent 90%
+  );
+  mask: radial-gradient(
+    circle,
+    transparent 22px,
+    black 23px,
+    black 31px,
+    transparent 32px
+  );
+  -webkit-mask: radial-gradient(
+    circle,
+    transparent 22px,
+    black 23px,
+    black 31px,
+    transparent 32px
+  );
+}
+
+/* Fallback for browsers without conic-gradient */
+@supports not (background: conic-gradient(red, blue)) {
+  .emotion-ring {
+    background: transparent;
+    border: 3px solid var(--ring-color);
+    mask: none;
+    -webkit-mask: none;
+  }
+}
+
+/* Peace — slow rotation */
+.emotion-ring.emotion-peace {
+  --ring-color: #00d4ff;
+  animation: ring-rotate 3s linear infinite;
+}
+
+/* Tension — fast pulse */
+.emotion-ring.emotion-tension {
+  --ring-color: #ff6b35;
+  animation: ring-pulse 0.8s ease-in-out infinite;
+}
+
+/* Trauma — shake and flicker */
+.emotion-ring.emotion-trauma {
+  --ring-color: #ff2d55;
+  animation: ring-shake 0.3s ease-in-out infinite,
+             ring-flicker 0.15s steps(2) infinite;
+}
+
+/* Healing — gentle pulse with glow */
+.emotion-ring.emotion-healing {
+  --ring-color: #34c759;
+  animation: ring-heal 2s ease-in-out infinite;
+  box-shadow: 0 0 12px var(--ring-color);
+}
+
+/* Animations */
+@keyframes ring-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ring-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes ring-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+@keyframes ring-flicker {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes ring-heal {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scale(1);
+    box-shadow: 0 0 8px var(--ring-color);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+    box-shadow: 0 0 16px var(--ring-color);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glass-button {
     transition: none;
@@ -615,5 +742,14 @@ body {
   .entity-switcher.has-new-entity {
     animation: none;
     box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.5);
+  }
+
+  .emotion-ring {
+    animation: ring-pulse-simple 2s ease-in-out infinite !important;
+  }
+
+  @keyframes ring-pulse-simple {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
   }
 }

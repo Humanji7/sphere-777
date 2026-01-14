@@ -128,6 +128,10 @@ export class Sphere {
             decayRate: 0         // per-second decay
         }
 
+        // Callback for emotion changes (used by UI)
+        this.onEmotionChange = null
+        this._lastEmittedEmotion = 'peace'
+
         // Ripple effect state (poke reaction)
         this.ripple = {
             active: false,
@@ -403,6 +407,14 @@ export class Sphere {
         this.emotionState.intensity = intensity
         this.emotionState.decayRate = decayRate
 
+        // Notify UI of emotion change
+        if (emotion !== this._lastEmittedEmotion) {
+            this._lastEmittedEmotion = emotion
+            if (this.onEmotionChange) {
+                this.onEmotionChange(emotion)
+            }
+        }
+
         // Debug logging (temporary)
         // console.log(`[EMOTION] → ${emotion} (intensity=${intensity.toFixed(2)}, decay=${decayRate})`)
     }
@@ -418,6 +430,13 @@ export class Sphere {
         // Return to peace when emotion fades
         if (e.intensity <= 0 && e.current !== 'peace') {
             e.current = 'peace'
+            // Notify UI of return to peace
+            if (this._lastEmittedEmotion !== 'peace') {
+                this._lastEmittedEmotion = 'peace'
+                if (this.onEmotionChange) {
+                    this.onEmotionChange('peace')
+                }
+            }
         }
     }
 

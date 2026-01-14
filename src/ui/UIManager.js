@@ -6,6 +6,7 @@ import { SoundToggle } from './SoundToggle.js'
 import { SettingsButton } from './SettingsButton.js'
 import { SettingsModal } from './SettingsModal.js'
 import { EntitySwitcher } from './EntitySwitcher.js'
+import { EmotionRing } from './EmotionRing.js'
 
 export class UIManager {
     constructor(options = {}) {
@@ -17,6 +18,8 @@ export class UIManager {
         this.settingsButton = null
         this.settingsModal = null
         this.entitySwitcher = null
+        this.emotionRing = null
+        this.entityWrapper = null
         this.soundManager = null
         this.sampleSound = null
         this.memoryManager = null
@@ -60,11 +63,22 @@ export class UIManager {
             onClose: () => this._handleSettingsClose()
         })
 
-        // Create EntitySwitcher
+        // Create EntitySwitcher with EmotionRing wrapper
+        this.entityWrapper = document.createElement('div')
+        this.entityWrapper.className = 'entity-wrapper'
+        this.entityWrapper.dataset.testid = 'entity-wrapper'
+
+        // Create EmotionRing and add to wrapper
+        this.emotionRing = new EmotionRing()
+        this.entityWrapper.appendChild(this.emotionRing.create())
+
+        // Create EntitySwitcher and add to wrapper
         this.entitySwitcher = new EntitySwitcher({
             onSwitch: (entityId) => this._handleEntitySwitch(entityId)
         })
-        bottomCenter.appendChild(this.entitySwitcher.getElement())
+        this.entityWrapper.appendChild(this.entitySwitcher.getElement())
+
+        bottomCenter.appendChild(this.entityWrapper)
 
         // Assemble layer
         this.layer.appendChild(topLeft)
@@ -136,6 +150,16 @@ export class UIManager {
         }, stepTime)
     }
 
+    /**
+     * Update emotion ring visualization
+     * @param {string} emotionState - Current emotion from Sphere
+     */
+    updateEmotion(emotionState) {
+        if (this.emotionRing) {
+            this.emotionRing.setEmotion(emotionState)
+        }
+    }
+
     setSoundManager(soundManager) {
         this.soundManager = soundManager
     }
@@ -186,6 +210,9 @@ export class UIManager {
         }
         if (this.entitySwitcher) {
             this.entitySwitcher.dispose()
+        }
+        if (this.emotionRing) {
+            this.emotionRing.destroy()
         }
         if (this.layer) {
             this.layer.remove()

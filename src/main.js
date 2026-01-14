@@ -241,6 +241,13 @@ class App {
         this.uiManager.setMemoryManager(this.memoryManager)
         this.uiManager.setTransformManager(this.transformManager)
 
+        // Connect emotion changes to UI
+        this.sphere.onEmotionChange = (emotion) => {
+            this.uiManager.updateEmotion(emotion)
+        }
+        // Initial sync
+        this.uiManager.updateEmotion(this.sphere.getEmotionPhase())
+
         // Show UI after short delay
         setTimeout(() => {
             this.uiManager.show()
