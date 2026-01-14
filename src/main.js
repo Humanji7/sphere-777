@@ -34,11 +34,40 @@ class App {
         this.clock = new THREE.Clock()
         this.sizeMultiplier = 1.0  // Responsive size for mobile
 
+        // Platform-specific config
+        this.platformConfig = this._getPlatformConfig()
+
         this._initThree()
         this._initPostProcessing()
         this._initModules()
         this._bindEvents()
         this._animate()
+    }
+
+    /**
+     * Platform-specific configuration
+     * Capacitor (APK) vs Web have different optimal settings
+     */
+    _getPlatformConfig() {
+        const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor
+
+        if (isCapacitor) {
+            // APK / Capacitor — sphere needs to be smaller to fit nicely
+            return {
+                platform: 'capacitor',
+                cameraZ: 6.2,           // Further back (default 5)
+                sphereScale: 0.85,      // Slightly smaller sphere
+                particleSizeBoost: 1.0  // Normal particle size
+            }
+        }
+
+        // Web (Vercel) — current settings work well
+        return {
+            platform: 'web',
+            cameraZ: 5,
+            sphereScale: 1.0,
+            particleSizeBoost: 1.0
+        }
     }
 
     /**
@@ -58,10 +87,10 @@ class App {
         this.scene = new THREE.Scene()
         this.scene.background = new THREE.Color(0x000000)
 
-        // Camera
+        // Camera (position from platform config)
         const aspect = window.innerWidth / window.innerHeight
         this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 100)
-        this.camera.position.z = 5
+        this.camera.position.z = this.platformConfig.cameraZ
 
         // Renderer
         this.renderer = new THREE.WebGLRenderer({
@@ -113,10 +142,19 @@ class App {
 
         // Particle system (with size multiplier for mobile)
         this.particleSystem = new ParticleSystem(particleCount, 0.03, this.sizeMultiplier)
+
+        // Apply platform-specific sphere scale
+        if (this.platformConfig.sphereScale !== 1.0) {
+            this.particleSystem.mesh.scale.setScalar(this.platformConfig.sphereScale)
+        }
+
         this.scene.add(this.particleSystem.getMesh())
 
         // Eye (organic particle-based, with size multiplier)
         this.eye = new Eye(this.particleSystem.baseRadius, this.sizeMultiplier)
+        if (this.platformConfig.sphereScale !== 1.0) {
+            this.eye.getMesh().scale.setScalar(this.platformConfig.sphereScale)
+        }
         this.scene.add(this.eye.getMesh())
 
         // Sphere orchestrator (emotional state machine)
@@ -137,6 +175,9 @@ class App {
 
         // Living Core (inner glow layers — heartbeat, pulse, outer glow)
         this.livingCore = new LivingCore(this.particleSystem.baseRadius)
+        if (this.platformConfig.sphereScale !== 1.0) {
+            this.livingCore.getMesh().scale.setScalar(this.platformConfig.sphereScale)
+        }
         this.scene.add(this.livingCore.getMesh())
 
         // Transformation Manager (Eerie shell states)
