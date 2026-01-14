@@ -1,134 +1,136 @@
 # SPHERE-777: Текущий Статус
 
-**Обновлено:** 2026-01-13
+**Обновлено:** 2026-01-14
 
 ---
 
-## Последняя сессия: Философия v2
+## Последняя сессия: Capacitor + APK
 
 ### Что сделано
-Зафиксирована новая философия и требования:
-- `docs/plans/2026-01-13-techno-pet-philosophy.md` — полный документ
+- Capacitor setup для Android
+- APK собран и протестирован на Pixel
+- Platform-specific scaling (camera + sphere scale для APK)
+- Всё работает: рендер, touch, звук, вибрация
 
-### Ключевые решения
-1. **Продукт для людей** — не эксперимент
-2. **Play Store** — цель (Capacitor)
-3. **Три столпа**: не умирает, нет геймификации, уникальный характер
-4. **MVP**: онбординг + 2 сущности + киберпанк UI + локальная память
-5. **Cloud — YAGNI** — только localStorage для MVP
-6. **Visual Enrichment** — отдельный трек (психоделик-эстетика)
+### Ключевые файлы
+- `capacitor.config.json` — конфиг Capacitor
+- `android/` — Android проект
+- `src/main.js` → `_getPlatformConfig()` — настройки под платформу
+
+### Workflow
+```bash
+# Web (Vercel)
+npm run build && npx vercel --prod
+
+# APK
+npm run build && npx cap sync android
+# Затем Run в Android Studio
+```
+
+---
+
+## Следующая сессия: Визуал
+
+### Приоритет 1: Онбординг "Пробуждение"
+
+**Философия:** Set & Setting (без слов, без туториала)
+
+```
+Шаг 1: Тишина (2 сек)
+├─ Чёрный экран
+└─ Слабое дыхание (звук)
+
+Шаг 2: Свет (3-4 сек)
+├─ Центр — слабое свечение
+└─ Пульсирует в ритме дыхания
+
+Шаг 3: Пробуждение
+├─ Свет усиливается → сфера
+├─ Глаз открывается
+└─ Находит пользователя
+
+Шаг 4: Приглашение
+├─ Сфера тянется к экрану
+└─ Ждёт первого касания
+
+Шаг 5: Первый контакт
+├─ Пользователь касается
+└─ Эмоциональный отклик
+```
+
+**Задачи:**
+- [ ] OnboardingManager.js — state machine
+- [ ] Анимация появления (opacity, scale)
+- [ ] Синхронизация со звуком
+- [ ] Первый launch detection (localStorage)
+
+---
+
+### Приоритет 2: Киберпанк UI
+
+**Концепция:** Техно-стеклянные пузырьки
+
+- Минималистичные меню по краям
+- Glassmorphism эстетика
+- Без текста где возможно
+
+**Элементы:**
+- [ ] Кнопка переключения сущностей (Сфера ↔ Жук)
+- [ ] Настройки звука
+- [ ] Панель характера (swipe up)
+
+---
+
+### Приоритет 3: Visual Enrichment
+
+**Отдельный трек** — психоделик-эстетика:
+- Фрактальность
+- Частицы как формы
+- Многослойность
+- Color palettes
 
 ---
 
 ## Реализовано
 
 ### Core
-- 5,000 частиц с Fibonacci-распределением
-- 6 эмоциональных фаз (PEACE → TRAUMA → HEALING)
-- 9 жестов с Gesture → Emotion маппингом
-- Глаз (радужка, зрачок, моргание, слежение)
-- Trust/Memory система (localStorage)
+- 5,000 частиц (2,000 на mobile)
+- 6 эмоциональных фаз
+- 9 жестов
+- Глаз с отслеживанием
+- Trust/Memory система
 
-### Audio (SampleSoundSystem)
-- L1-L2: Foundation + Glass layers
-- L4: Tail reverb
-- L5: Breath
-- L6: Formant (vowel morphing)
-- L7: Glitch (bitcrush + stutter)
+### Audio
+- L1-L7 layers
 - 5 LFO модуляторов
+- Glitch система
 
 ### Organic Life
-- OrganicTicks — 4 типа микро-движений
-- LivingCore — 3 слоя внутреннего свечения
-- IdleAgency — mood state machine
-- HapticManager — 7 BPM паттернов
+- OrganicTicks
+- LivingCore
+- IdleAgency
+- HapticManager
 
-### Transformations
-- Жук (BeetleShell) — работает
-- Автопереключение (временно)
-
----
-
-## Следующие шаги
-
-### Приоритет 1: Capacitor Setup
-```bash
-npm install @capacitor/core @capacitor/cli
-npx cap init
-npx cap add android
-```
-- Собрать APK
-- Протестировать на Pixel
-- Проверить производительность 5000 частиц
-
-### Приоритет 2: Онбординг
-Сценарий "Пробуждение":
-1. Чёрный экран + дыхание
-2. Свет появляется
-3. Сфера пробуждается
-4. Первый контакт (stroke)
-5. Свобода исследования
-
-**Без слов. Без туториала. Без имени.**
-
-### Приоритет 3: Киберпанк UI
-- Техно-стеклянные пузырьки по краям
-- Меню: звуки, характер, трансформации
-- Минимализм + характер
-
-### Приоритет 4: Персонализация
-- 5 осей (темперамент, тембр, палитра, форма, память)
-- Seed-based уникальность
-- localStorage хранение
-
-### Отдельный трек: Visual Enrichment
-- Психоделик-эстетика
-- Фрактальность
-- Частицы как формы
-- Многослойность
+### Mobile
+- APK работает
+- Platform-specific scaling
+- iOS в бэклоге
 
 ---
 
-## Debug Commands
+## Debug
 
 ```javascript
 // Console
 window.app.sampleSound.setGlitchEnabled(true/false)
-window.app.sampleSound.setVolume(0.5)
-window.app.sampleSound.mute() / .unmute()
-
-// Transform
 window.triggerTransform('beetle')
 window.returnToOrganic()
 ```
 
 ---
 
-## Ключевые файлы
+## Backlog
 
-| Файл | Роль |
-|------|------|
-| `src/main.js` | Оркестрация, RAF loop, debug UI |
-| `src/Sphere.js` | Эмоции, colorProgress, osmosisDepth |
-| `src/SampleSoundSystem.js` | Audio layers, LFO, glitch |
-| `src/InputManager.js` | Жесты, velocity, holdDuration |
-
----
-
-## Документация
-
-| Файл | Содержание |
-|------|------------|
-| `docs/VISION.md` | Краткое видение |
-| `docs/plans/2026-01-13-techno-pet-philosophy.md` | Полная философия v2 |
-| `docs/ARCHITECTURE.md` | Техническая архитектура |
-
----
-
-## Команды
-
-```bash
-npm run dev              # Dev server
-npm run dev -- --host    # + mobile
-npm run build && npx vercel --prod  # Deploy web
-```
+- [ ] iOS setup (docs/BACKLOG_IOS_SETUP.md)
+- [ ] Google Play публикация ($25 + 12 тестеров + 14 дней)
+- [ ] Cloud sync (YAGNI для MVP)
