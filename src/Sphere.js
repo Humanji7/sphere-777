@@ -233,6 +233,34 @@ export class Sphere {
     }
 
     /**
+     * Set accelerometer manager (motion-based interaction)
+     * @param {AccelerometerManager} accelerometer - The accelerometer instance
+     */
+    setAccelerometer(accelerometer) {
+        this.accelerometer = accelerometer
+    }
+
+    /**
+     * Apply motion-based gesture (from accelerometer)
+     * Affects whole sphere: emotion, particles, eye, core
+     * @param {string} gesture - shake | jolt
+     * @param {number} value - intensity/magnitude
+     */
+    applyMotionGesture(gesture, value = 1) {
+        switch (gesture) {
+            case 'shake':
+                // Shake → alert (agitated, stressed)
+                this._setEmotion('alert', 0.9, 1.5)
+                break
+
+            case 'jolt':
+                // Sudden drop/impact → alert startle
+                this._setEmotion('alert', 1.0, 2.0)
+                break
+        }
+    }
+
+    /**
      * Get current emotion phase for LivingCore visual appearance
      * Returns emotionState.current (gesture-driven) which controls colors
      * separate from PHASE state machine (gameplay mechanics)

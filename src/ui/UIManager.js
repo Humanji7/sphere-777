@@ -182,6 +182,13 @@ export class UIManager {
         }
     }
 
+    setAccelerometer(accelerometer) {
+        this.accelerometer = accelerometer
+        if (this.settingsModal) {
+            this.settingsModal.setAccelerometer(accelerometer)
+        }
+    }
+
     show() {
         if (this.layer) {
             this.layer.classList.add('visible')

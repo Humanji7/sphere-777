@@ -530,6 +530,17 @@ body {
   letter-spacing: 0.02em;
 }
 
+.modal-item-toggle {
+  justify-content: flex-start;
+}
+
+.toggle-indicator {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
 /* Sub-views (About, Credits) */
 .modal-view {
   padding: 12px;

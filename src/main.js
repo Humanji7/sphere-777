@@ -22,6 +22,7 @@ import { BeetleShell } from './shells/BeetleShell.js'
 import { CharacterPanel } from './CharacterPanel.js'
 import { OnboardingManager } from './OnboardingManager.js'
 import { UIManager } from './ui/UIManager.js'
+import { AccelerometerManager } from './AccelerometerManager.js'
 
 /**
  * Main application entry point
@@ -135,6 +136,11 @@ class App {
         // Input manager
         this.inputManager = new InputManager(this.canvas)
 
+        // Accelerometer manager (motion-based interaction)
+        this.accelerometer = new AccelerometerManager({
+            onMotionEvent: (e) => this._handleMotionEvent(e)
+        })
+
         // Adaptive particle count for mobile
         const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
         const particleCount = isMobile ? 2000 : 5000
@@ -163,6 +169,7 @@ class App {
         this.sphere = new Sphere(this.particleSystem, this.inputManager, this.camera)
         this.sphere.setSizeMultiplier(this.sizeMultiplier)  // Apply responsive sizing
         this.sphere.setEye(this.eye)  // Connect eye to emotional system
+        this.sphere.setAccelerometer(this.accelerometer)  // Connect motion input
         // this.sphere.setDebug(true)  // Uncomment for debug logging
 
         // Memory Manager (emotional memory / trust system)
@@ -240,6 +247,10 @@ class App {
         this.uiManager.setSampleSound(this.sampleSound)
         this.uiManager.setMemoryManager(this.memoryManager)
         this.uiManager.setTransformManager(this.transformManager)
+        this.uiManager.setAccelerometer(this.accelerometer)
+
+        // Restore motion state if was enabled
+        this._restoreMotionState()
 
         // Connect emotion changes to UI
         this.sphere.onEmotionChange = (emotion) => {
@@ -454,6 +465,44 @@ class App {
     }
 
     /**
+     * Handle motion events from accelerometer
+     * @param {Object} e - Motion event { type, value, tilt, timestamp }
+     */
+    _handleMotionEvent(e) {
+        if (!this.sphere) return
+
+        switch (e.type) {
+            case 'shake':
+                this.sphere.applyMotionGesture('shake', e.value)
+                break
+            case 'jolt':
+                this.sphere.applyMotionGesture('jolt', e.value)
+                break
+            case 'shake_end':
+                // Could trigger calming effect
+                break
+        }
+    }
+
+    /**
+     * Restore motion (accelerometer) state from localStorage
+     * Called after onboarding complete (user gesture required for iOS)
+     */
+    async _restoreMotionState() {
+        const motionEnabled = localStorage.getItem('sphere_motion') === 'true'
+        if (!motionEnabled || !this.accelerometer) return
+
+        const granted = await this.accelerometer.requestPermission()
+        if (granted) {
+            this.accelerometer.enable()
+            console.log('[App] Motion restored from settings')
+        } else {
+            // Permission denied — reset localStorage
+            localStorage.setItem('sphere_motion', 'false')
+        }
+    }
+
+    /**
      * Update sound debug panel with LFO values and emotional parameters
      */
     _updateSoundDebug(elapsed) {
@@ -464,8 +513,11 @@ class App {
             const panel = document.getElementById('sound-debug')
             if (!panel) return
 
-            // Show panel
-            panel.classList.remove('hidden')
+            // Show panel only if enabled in settings (default: hidden)
+            const debugEnabled = localStorage.getItem('sphere_debug_panel') === 'true'
+            if (debugEnabled) {
+                panel.classList.remove('hidden')
+            }
 
             this._debugElements = {
                 // LFO bars

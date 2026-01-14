@@ -7,6 +7,7 @@ export class SettingsModal {
     constructor(options = {}) {
         this.onClose = options.onClose || null
         this.memoryManager = options.memoryManager || null
+        this.accelerometer = options.accelerometer || null
 
         this.element = null
         this.isVisible = false
@@ -58,6 +59,29 @@ export class SettingsModal {
             </div>
         `
 
+        // Motion toggle (accelerometer)
+        const motionOn = this._isMotionEnabled()
+        const motionSupported = this.accelerometer?.isSupported !== false
+        if (motionSupported) {
+            html += `
+                <div class="modal-item modal-item-toggle" data-action="motion">
+                    <svg viewBox="0 0 24 24"><path d="M17.66 17.66l-1.06 1.06-.71-.71 1.06-1.06-1.94-1.94-1.06 1.06-.71-.71 1.06-1.06-1.94-1.94-1.06 1.06-.71-.71 1.06-1.06L9.7 9.7l-1.06 1.06-.71-.71 1.06-1.06-1.94-1.94-1.06 1.06-.71-.71 1.06-1.06L4 4v16h16l-2.34-2.34zM7 17v-5.76L12.76 17H7z"/></svg>
+                    <span>Motion</span>
+                    <span class="toggle-indicator">${motionOn ? 'ON' : 'OFF'}</span>
+                </div>
+            `
+        }
+
+        // Debug toggle
+        const debugOn = this._isDebugVisible()
+        html += `
+            <div class="modal-item modal-item-toggle" data-action="debug">
+                <svg viewBox="0 0 24 24"><path d="M20 8h-2.81c-.45-.78-1.07-1.45-1.82-1.96L17 4.41 15.59 3l-2.17 2.17C12.96 5.06 12.49 5 12 5c-.49 0-.96.06-1.41.17L8.41 3 7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20V8zm-6 8h-4v-2h4v2zm0-4h-4v-2h4v2z"/></svg>
+                <span>Debug</span>
+                <span class="toggle-indicator">${debugOn ? 'ON' : 'OFF'}</span>
+            </div>
+        `
+
         html += `</div>`
 
         this.element.innerHTML = html
@@ -67,7 +91,8 @@ export class SettingsModal {
     _bindEvents() {
         const items = this.element.querySelectorAll('.modal-item')
         items.forEach(item => {
-            item.addEventListener('click', () => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation()
                 const action = item.dataset.action
                 this._handleAction(action)
             })
@@ -84,6 +109,12 @@ export class SettingsModal {
                 break
             case 'stats':
                 this._toggleStats()
+                break
+            case 'debug':
+                this._toggleDebug()
+                break
+            case 'motion':
+                this._toggleMotion()
                 break
         }
     }
@@ -117,6 +148,59 @@ export class SettingsModal {
     _toggleStats() {
         window.dispatchEvent(new CustomEvent('toggle-character-panel'))
         this.hide()
+    }
+
+    _isDebugVisible() {
+        return localStorage.getItem('sphere_debug_panel') === 'true'
+    }
+
+    _toggleDebug() {
+        const panel = document.getElementById('sound-debug')
+        if (!panel) return
+
+        const isVisible = this._isDebugVisible()
+        const newState = !isVisible
+
+        localStorage.setItem('sphere_debug_panel', String(newState))
+
+        if (newState) {
+            panel.classList.remove('hidden')
+        } else {
+            panel.classList.add('hidden')
+        }
+
+        // Re-render to update toggle indicator
+        this._renderContent()
+    }
+
+    _isMotionEnabled() {
+        return localStorage.getItem('sphere_motion') === 'true'
+    }
+
+    async _toggleMotion() {
+        if (!this.accelerometer) return
+
+        const isEnabled = this._isMotionEnabled()
+
+        if (!isEnabled) {
+            // Enabling — need to request permission first
+            const granted = await this.accelerometer.requestPermission()
+            if (!granted) {
+                // Permission denied — show message briefly
+                console.log('[Settings] Motion permission denied')
+                return
+            }
+
+            this.accelerometer.enable()
+            localStorage.setItem('sphere_motion', 'true')
+        } else {
+            // Disabling
+            this.accelerometer.disable()
+            localStorage.setItem('sphere_motion', 'false')
+        }
+
+        // Re-render to update toggle indicator
+        this._renderContent()
     }
 
     _getSessionTime() {
@@ -174,6 +258,10 @@ export class SettingsModal {
 
     setMemoryManager(memoryManager) {
         this.memoryManager = memoryManager
+    }
+
+    setAccelerometer(accelerometer) {
+        this.accelerometer = accelerometer
     }
 
     dispose() {
