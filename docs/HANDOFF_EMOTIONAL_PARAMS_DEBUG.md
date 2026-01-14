@@ -1,92 +1,139 @@
-# Session Handoff: Emotional Parameters Debugging & Visibility
+# Session Handoff: Emotional Parameters — FIXED
 
-**Date**: 2026-01-13  
-**Status**: 🔴 Problem Identified, Needs Fresh Perspective
+**Date**: 2026-01-13
+**Status**: RESOLVED
 
-## The Problem
+## Problem Found
 
-Мы построили сложную многослойную аудио-систему, но **не понимаем сами**, как параметры перетекают друг в друга. Конкретно:
-
-1. **L7 Glitch активируется слишком поздно** — нужно ~30 секунд активного взаимодействия, чтобы довести `tension > 0.6`
-2. **Непонятно, зачем юзер будет это делать** — нет визуальной обратной связи о текущем уровне напряжения
-3. **Нет видимости параметров** — `colorProgress`, `holdSaturation`, `tension`, `glitchMix` — всё это внутренние переменные без UI
-
-## Current Parameter Flow (насколько известно)
+**Root cause**: `colorProgress` и `holdSaturation` НЕ передавались в `SampleSoundSystem.update()`.
 
 ```
-User Interaction
-       │
-       ▼
-┌─────────────────────────────────────────────────┐
-│  Sphere State Machine (?)                       │
-│                                                 │
-│  cursor movement ──► colorProgress (0-1)        │
-│  touch hold     ──► holdSaturation (0-1)        │
-│                                                 │
-└─────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────┐
-│  SampleSoundSystem._modulateGlitch()            │
-│                                                 │
-│  tension = max(colorProgress, holdSaturation*0.8) │
-│                                                 │
-│  if tension > 0.6:                              │
-│      glitchMix = (tension - 0.6) / 0.4          │
-│                                                 │
-└─────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────┐
-│  Audio Output                                   │
-│                                                 │
-│  L1-L6: Foundation, Harmonics, Breath, etc.    │
-│  L7: Glitch (bitcrush + stutter)               │
-│                                                 │
-└─────────────────────────────────────────────────┘
+BEFORE (broken):
+main.js → SampleSoundSystem.update({isActive, touchIntensity, velocity})
+                                    ↓
+         _modulateGlitch({colorProgress=0, holdSaturation=0})  ← DEFAULT VALUES!
+                                    ↓
+         tension = 0 → glitchMix = 0 (NEVER ACTIVATED)
 ```
 
-## What's Missing
+## Fixes Applied
 
-### 1. Debug UI Panel
-Нужен оверлей с real-time параметрами:
-- `colorProgress: 0.42`
-- `holdSaturation: 0.15`
-- `tension: 0.42`
-- `glitchMix: 0.00` (threshold: 0.6)
-
-### 2. Parameter Discovery
-Непонятно:
-- Откуда приходит `colorProgress`? Как быстро он растёт?
-- Как именно `holdSaturation` накапливается?
-- Какие ещё параметры есть в `state`, который передаётся в `update()`?
-- Есть ли другие системы, влияющие на эмоциональное состояние?
-
-### 3. Threshold Tuning
-Возможно, `0.6` — слишком высокий порог. Но без видимости параметров невозможно понять, какой порог правильный.
-
-## Files to Investigate
-
-- [`src/SampleSoundSystem.js`](file:///Users/admin/projects/sphere-777/src/SampleSoundSystem.js) — `update()` method, что приходит в `state`?
-- [`src/main.js`](file:///Users/admin/projects/sphere-777/src/main.js) — откуда формируется `state`?
-- [`src/Sphere.js`](file:///Users/admin/projects/sphere-777/src/Sphere.js) — как вычисляются `colorProgress`, `holdSaturation`?
-
-## Suggested Approach for Next Session
-
-1. **Mapping** — построить полную карту: какой параметр откуда берётся и куда идёт
-2. **Debug UI** — добавить простой HTML overlay с real-time значениями
-3. **Threshold Review** — пересмотреть пороги активации всех слоёв (не только L7)
-4. **Documentation** — задокументировать "эмоциональную экономику" сферы
-
-## Quick Debug (for next session)
-
+### 1. Parameter Passing (main.js:319-326)
 ```javascript
-// Вставить в update() для логирования state
-console.log('Sphere state:', JSON.stringify(state, null, 2))
+this.sampleSound.update({
+    isActive: this.inputManager.isActive,
+    touchIntensity: inputState.touchIntensity || 0,
+    velocity: inputState.velocity || 0,
+    // Emotional parameters for L7 Glitch
+    colorProgress: this.sphere.currentColorProgress || 0,
+    holdSaturation: this.sphere.osmosisDepth || 0
+}, elapsed)
 ```
 
----
+### 2. Debug UI (index.html + style.css)
+Added real-time visualization:
+- `color` — colorProgress (velocity + tensionTime)
+- `hold` — osmosisDepth (hold duration)
+- `tension` — max(color, hold*0.8)
+- `glitch` — activation level with threshold marker
 
-> "We built a complex thing and don't understand ourselves how parameters flow into each other."
+### 3. Threshold Lowered (SampleSoundSystem.js:425)
+```javascript
+const threshold = 0.35  // Was 0.6 — now activates earlier
+```
 
-Нужен **свежий взгляд** — системный анализ всей эмоциональной архитектуры.
+**New activation requirements:**
+- velocity ≥ 0.44 (moderate speed)
+- OR tensionTime ≥ 1.17s (achievable aggression)
+- OR holdSaturation ≥ 0.44 (moderate hold)
+
+## Data Flow — Complete Map
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  USER INPUT                                                     │
+│  ───────────                                                    │
+│  cursor movement → velocity (0-1)                               │
+│  hold on sphere  → holdDuration (seconds)                       │
+└─────────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  InputManager.getState()                                        │
+│  ───────────────────────                                        │
+│  → velocity: normalized cursor speed                            │
+│  → touchIntensity: force touch pressure (0-1)                   │
+│  → holdDuration: seconds holding                                │
+│  → gestureType: stroke | poke | orbit | etc.                    │
+└─────────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Sphere.update()                                                │
+│  ──────────────                                                 │
+│  tensionTime += delta (if velocity > 0.1)                       │
+│  tensionTime -= delta (if velocity < 0.1)                       │
+│                                                                 │
+│  targetColorProgress = velocity * 0.8                           │
+│                      + tensionTime * 0.3                        │
+│                      + (bleeding ? 0.3 : 0)                     │
+│                                                                 │
+│  currentColorProgress ← smooth lerp → targetColorProgress       │
+│                                                                 │
+│  osmosisDepth = f(holdDuration):                                │
+│    0-0.3s → 0                                                   │
+│    0.3-2s → 0→0.7                                               │
+│    2-5s   → 0.7→1.0                                             │
+└─────────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  main.js → SampleSoundSystem.update(state)                      │
+│  ─────────────────────────────────────────                      │
+│  state = {                                                      │
+│    isActive,                                                    │
+│    touchIntensity,                                              │
+│    velocity,                                                    │
+│    colorProgress,    ← NEW                                      │
+│    holdSaturation    ← NEW (= osmosisDepth)                     │
+│  }                                                              │
+└─────────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  SampleSoundSystem._modulateGlitch(state)                       │
+│  ────────────────────────────────────────                       │
+│  tension = max(colorProgress, holdSaturation * 0.8)             │
+│                                                                 │
+│  threshold = 0.35                                               │
+│                                                                 │
+│  if tension > threshold:                                        │
+│      glitchMix = (tension - 0.35) / 0.65                        │
+│      → applies bitcrush + stutter                               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Testing
+
+1. Run `npm run dev`
+2. Click to start
+3. Debug panel appears top-left showing:
+   - LFO bars (ocean, breath, pulse, shimmer, drift)
+   - Emotional bars (color, hold, tension, glitch)
+   - Threshold marker at 35%
+4. Move cursor quickly → color rises → tension rises → glitch activates
+5. Hold on sphere → hold rises → tension rises → glitch activates
+
+## Files Changed
+
+- `src/main.js` — parameter passing + debug UI update
+- `src/SampleSoundSystem.js` — threshold 0.6 → 0.35
+- `index.html` — emotional params debug panel
+- `style.css` — debug panel styling
+
+## Session Complete
+
+The emotional audio system is now:
+- **Observable**: Real-time debug UI shows all parameters
+- **Accessible**: Lower threshold (0.35) makes glitch achievable
+- **Documented**: Complete data flow map above

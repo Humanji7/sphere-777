@@ -351,3 +351,51 @@ body {
 .debug-status.playing {
   color: #0f0;
 }
+
+/* Emotional Parameters Debug */
+.emotion-fill {
+  background: linear-gradient(90deg, #ff6b6b, #ffd93d) !important;
+}
+
+.tension-fill {
+  background: linear-gradient(90deg, #4ecdc4, #ff6b6b, #c44569) !important;
+}
+
+.glitch-fill {
+  background: linear-gradient(90deg, #6c5ce7, #fd79a8, #e17055) !important;
+}
+
+.glitch-bar {
+  position: relative;
+}
+
+.threshold-mark {
+  position: absolute;
+  left: 35%;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: #fff;
+  opacity: 0.8;
+}
+
+.emo-val {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 9px;
+  width: 28px;
+  text-align: right;
+}
+
+#glitch-status {
+  font-size: 10px;
+}
+
+#glitch-status.active {
+  color: #fd79a8;
+  animation: glitch-pulse 0.3s ease infinite;
+}
+
+@keyframes glitch-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

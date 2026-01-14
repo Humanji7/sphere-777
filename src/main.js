@@ -319,7 +319,10 @@ class App {
                 this.sampleSound.update({
                     isActive: this.inputManager.isActive,
                     touchIntensity: inputState.touchIntensity || 0,
-                    velocity: inputState.velocity || 0
+                    velocity: inputState.velocity || 0,
+                    // Emotional parameters for L7 Glitch
+                    colorProgress: this.sphere.currentColorProgress || 0,
+                    holdSaturation: this.sphere.osmosisDepth || 0
                 }, elapsed)
 
                 // Update debug UI
@@ -362,7 +365,7 @@ class App {
     }
 
     /**
-     * Update sound debug panel with LFO values
+     * Update sound debug panel with LFO values and emotional parameters
      */
     _updateSoundDebug(elapsed) {
         if (!this.sampleSound) return
@@ -376,12 +379,23 @@ class App {
             panel.classList.remove('hidden')
 
             this._debugElements = {
+                // LFO bars
                 ocean: document.getElementById('lfo-ocean'),
                 breath: document.getElementById('lfo-breath'),
                 pulse: document.getElementById('lfo-pulse'),
                 shimmer: document.getElementById('lfo-shimmer'),
                 drift: document.getElementById('lfo-drift'),
-                status: document.getElementById('debug-status')
+                status: document.getElementById('debug-status'),
+                // Emotional params
+                emoColor: document.getElementById('emo-color'),
+                emoColorVal: document.getElementById('emo-color-val'),
+                emoHold: document.getElementById('emo-hold'),
+                emoHoldVal: document.getElementById('emo-hold-val'),
+                emoTension: document.getElementById('emo-tension'),
+                emoTensionVal: document.getElementById('emo-tension-val'),
+                emoGlitch: document.getElementById('emo-glitch'),
+                emoGlitchVal: document.getElementById('emo-glitch-val'),
+                glitchStatus: document.getElementById('glitch-status')
             }
         }
 
@@ -399,6 +413,33 @@ class App {
         if (els.status) {
             els.status.textContent = debug.isPlaying ? `PLAYING (${(debug.intensity * 100).toFixed(0)}%)` : 'idle'
             els.status.className = 'debug-status' + (debug.isPlaying ? ' playing' : '')
+        }
+
+        // Update emotional parameters
+        const colorProgress = this.sphere.currentColorProgress || 0
+        const holdSaturation = this.sphere.osmosisDepth || 0
+        const tension = Math.max(colorProgress, holdSaturation * 0.8)
+        const threshold = 0.35
+        const glitchMix = tension > threshold ? (tension - threshold) / (1 - threshold) : 0
+
+        if (els.emoColor) els.emoColor.style.width = `${colorProgress * 100}%`
+        if (els.emoColorVal) els.emoColorVal.textContent = colorProgress.toFixed(2)
+
+        if (els.emoHold) els.emoHold.style.width = `${holdSaturation * 100}%`
+        if (els.emoHoldVal) els.emoHoldVal.textContent = holdSaturation.toFixed(2)
+
+        if (els.emoTension) els.emoTension.style.width = `${tension * 100}%`
+        if (els.emoTensionVal) els.emoTensionVal.textContent = tension.toFixed(2)
+
+        if (els.emoGlitch) els.emoGlitch.style.width = `${glitchMix * 100}%`
+        if (els.emoGlitchVal) els.emoGlitchVal.textContent = glitchMix.toFixed(2)
+
+        if (els.glitchStatus) {
+            const isActive = glitchMix > 0
+            els.glitchStatus.textContent = isActive
+                ? `GLITCH: ON (${(glitchMix * 100).toFixed(0)}%)`
+                : `glitch: OFF (tension ${tension.toFixed(2)} < ${threshold})`
+            els.glitchStatus.className = isActive ? 'debug-status active' : 'debug-status'
         }
     }
 

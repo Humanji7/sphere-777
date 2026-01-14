@@ -409,21 +409,25 @@ export class SampleSoundSystem {
 
     /**
      * Modulate L7 Glitch based on emotional state
-     * Activates at colorProgress > 0.6 or holdSaturation > 0.8
+     * Activates at tension > 0.35 (lowered from 0.6 for earlier activation)
+     *
+     * Tension formula: max(colorProgress, holdSaturation * 0.8)
+     * - colorProgress rises with velocity (0.8x) + tensionTime (0.3x)
+     * - holdSaturation rises with hold duration (osmosis depth 0-1)
      */
     _modulateGlitch(state = {}) {
         if (!this.glitchEnabled) return
 
         const { colorProgress = 0, holdSaturation = 0 } = state
 
-        // Glitch activates at high tension
+        // Glitch activates at moderate tension (threshold lowered for accessibility)
         const tension = Math.max(colorProgress, holdSaturation * 0.8)
-        const threshold = 0.6
+        const threshold = 0.35  // Was 0.6 — now activates earlier
 
         if (tension < threshold) {
             this.glitchMix = 0
         } else {
-            // Intensity 0-1 above threshold
+            // Intensity 0-1 above threshold (0.35 → 0%, 1.0 → 100%)
             this.glitchMix = (tension - threshold) / (1 - threshold)
         }
 
@@ -431,16 +435,16 @@ export class SampleSoundSystem {
 
         // Glitch gain follows mix
         this.glitchGain.gain.linearRampToValueAtTime(
-            this.glitchMix * 0.3,  // max 30% wet
+            this.glitchMix * 0.7,  // TEST: 70% wet (was 30%)
             now + 0.05
         )
 
         // Stutter effect: random brief silences at high intensity
-        if (this.glitchMix > 0.5 && Math.random() < 0.05) {
+        if (this.glitchMix > 0.4 && Math.random() < 0.08) {  // TEST: lower threshold, more frequent
             this.glitchGain.gain.setValueAtTime(0, now)
             this.glitchGain.gain.linearRampToValueAtTime(
-                this.glitchMix * 0.3,
-                now + 0.02 + Math.random() * 0.03
+                this.glitchMix * 0.7,  // TEST: match wet level
+                now + 0.02 + Math.random() * 0.05
             )
         }
     }

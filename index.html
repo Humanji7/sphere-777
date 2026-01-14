@@ -64,6 +64,16 @@
         <div class="lfo-row"><span>drift</span><div class="lfo-bar"><div class="lfo-fill" id="lfo-drift"></div></div></div>
       </div>
       <div class="debug-status" id="debug-status">idle</div>
+
+      <!-- Emotional Parameters -->
+      <div class="debug-title" style="margin-top: 10px;">Emotional State</div>
+      <div class="lfo-bars">
+        <div class="lfo-row"><span>color</span><div class="lfo-bar"><div class="lfo-fill emotion-fill" id="emo-color"></div></div><span class="emo-val" id="emo-color-val">0</span></div>
+        <div class="lfo-row"><span>hold</span><div class="lfo-bar"><div class="lfo-fill emotion-fill" id="emo-hold"></div></div><span class="emo-val" id="emo-hold-val">0</span></div>
+        <div class="lfo-row"><span>tension</span><div class="lfo-bar"><div class="lfo-fill tension-fill" id="emo-tension"></div></div><span class="emo-val" id="emo-tension-val">0</span></div>
+        <div class="lfo-row"><span>glitch</span><div class="lfo-bar glitch-bar"><div class="lfo-fill glitch-fill" id="emo-glitch"></div><div class="threshold-mark"></div></div><span class="emo-val" id="emo-glitch-val">0</span></div>
+      </div>
+      <div class="debug-status" id="glitch-status">glitch: OFF (threshold 0.35)</div>
     </div>
   </div>
   <script type="module" src="/src/main.js"></script>
