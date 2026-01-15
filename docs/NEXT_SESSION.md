@@ -31,14 +31,26 @@
 
 ---
 
-## Следующие направления
+## Следующий шаг: Unity Migration
 
-| # | Направление | Описание |
-|---|-------------|----------|
-| 1 | **Tuning визуалов** | Flow/Pulse для разных эмоций, цвета PulseWaves |
-| 2 | **Mobile Performance** | Тестирование, ringCount для слабых GPU |
-| 3 | **Sound Integration** | PulseWaves + SampleSoundSystem синхронизация |
-| 4 | **Shell Integration** | Surface Flow для BeetleShell |
+> **План:** `docs/plans/2026-01-15-unity-migration.md`
+
+**Причина:** Three.js + Capacitor = 30-45 FPS. Unity native = 60 FPS стабильно.
+
+### День 1: Валидация
+```
+□ Установить Unity 6 LTS
+□ Установить MCP Unity package
+□ Тест: сфера с частицами
+□ Build APK → проверить FPS
+```
+
+**Критерий успеха:** 60 FPS на Android
+
+### После валидации (7-10 дней)
+- P0: Particle Sphere, Eye, Emotion FSM, Input
+- P1: LivingCore, PulseWaves, IdleAgency, OrganicTicks
+- P2: Sound, Haptics, Onboarding, UI
 
 ---
 
