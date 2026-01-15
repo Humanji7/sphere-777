@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { BioticNoise } from './utils/BioticNoise.js'
 
 /**
  * LivingCore - Two close concentric glow layers creating the sphere's "inner warmth"
@@ -216,6 +217,12 @@ export class LivingCore {
             bleeding: { inner: 0.8, pulse: 1.6 }
         }
 
+        // BioticNoise for organic rhythm variations
+        this.bioticNoise = {
+            inner: new BioticNoise({ driftOffset: 0, pauseInterval: 20 }),
+            pulse: new BioticNoise({ driftOffset: 2.1, pauseInterval: 25 })
+        }
+
         this._createLayers()
     }
 
@@ -277,7 +284,11 @@ export class LivingCore {
 
         for (const mesh of this.group.children) {
             const cfg = this.layers[mesh.name]
+            const noise = this.bioticNoise[mesh.name]
             const u = mesh.material.uniforms
+
+            // Update biotic noise state
+            noise.updateFrame(delta)
 
             // Auto-restore rhythms: lerp back to baseFreq
             const targetFreq = mesh.name === 'pulse' && phase === 'bleeding'
@@ -285,8 +296,11 @@ export class LivingCore {
                 : cfg.baseFreq
             cfg.freq = THREE.MathUtils.lerp(cfg.freq, targetFreq, delta * 2.0)
 
-            // Advance phase
-            cfg.phase += delta * cfg.freq
+            // Advance phase with organic variations (skip during micro-pauses)
+            if (noise.shouldUpdatePhase()) {
+                const effectiveFreq = cfg.freq * noise.getFrequencyMultiplier(elapsed)
+                cfg.phase += delta * effectiveFreq
+            }
 
             // Update uniforms
             u.uTime.value = elapsed

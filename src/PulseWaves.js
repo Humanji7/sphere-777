@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { BioticNoise } from './utils/BioticNoise.js'
 
 /**
  * PulseWaves — Concentric waves expanding from sphere center
@@ -22,6 +23,9 @@ export class PulseWaves {
         scale: 0
       })
     }
+
+    // BioticNoise for organic rhythm variations
+    this.bioticNoise = new BioticNoise({ driftOffset: 4.2, pauseInterval: 30 })
 
     // Create ring geometry and material
     this._createGeometry()
@@ -109,15 +113,24 @@ export class PulseWaves {
    * @param {number} breathPhase - Sphere breathing phase (0-2π)
    */
   update(delta, time, breathPhase = 0) {
+    // Update biotic noise state
+    this.bioticNoise.updateFrame(delta)
+
     const waveSpeed = 0.3 + this.intensity * 0.7  // Faster at higher intensity
     const spawnRate = 0.8 + this.intensity * 0.4  // More frequent at higher intensity
+
+    // Apply organic frequency variations
+    const freqMult = this.bioticNoise.getFrequencyMultiplier(time)
+    const shouldUpdate = this.bioticNoise.shouldUpdatePhase()
 
     for (let i = 0; i < this.ringCount; i++) {
       const ring = this.rings[i]
       const mesh = this.ringMeshes[i]
 
-      // Update phase (0 to 1, then reset)
-      ring.phase += delta * waveSpeed * spawnRate / this.ringCount
+      // Update phase with organic variations (skip during micro-pauses)
+      if (shouldUpdate) {
+        ring.phase += delta * waveSpeed * spawnRate / this.ringCount * freqMult
+      }
 
       if (ring.phase > 1) {
         ring.phase = ring.phase % 1
