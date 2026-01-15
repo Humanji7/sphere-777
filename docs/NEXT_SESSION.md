@@ -4,72 +4,95 @@
 
 ---
 
-## Следующая сессия: Full Living Sphere
+## Full Living Sphere Complete ✓
 
-### Задача
+### Реализовано (commit 96608e7)
 
-Реализовать "вау" эффект для сферы — сделать её более насыщенной и живой.
+| Система | Файл | Описание |
+|---------|------|----------|
+| **Surface Flow** | `ParticleSystem.js` | Tangential particle drift via simplex noise |
+| **PulseWaves** | `PulseWaves.js` | 12 концентрических колец с additive glow |
+| **InnerSkeleton** | `InnerSkeleton.js` | Icosahedron wireframe (только онбординг) |
 
-### Дизайн-документ
+### Интенсивность по эмоциям
 
-**`docs/plans/2026-01-15-full-living-sphere-design.md`**
+| Состояние | Flow Speed | Flow Amount | PulseWaves |
+|-----------|------------|-------------|------------|
+| Idle | 0.3 | 0.01 | 0.3 |
+| Interaction | 0.6 | 0.02 | 0.6 |
+| Max Tension | 1.0 | 0.03 | 1.0 |
 
-### Выбранный подход: Middle Ground D
+### InnerSkeleton фазы
 
-| Система | Тип | Когда |
-|---------|-----|-------|
-| **Surface Flow** | Shader mod | Всегда |
-| **PulseWaves** | Новый класс | Всегда |
-| **InnerSkeleton** | Новый класс | Только онбординг |
-
-### Промпт для агента
-
-```
-Реализуй "Full Living Sphere" по дизайн-документу:
-docs/plans/2026-01-15-full-living-sphere-design.md
-
-Подход: Middle Ground D
-- Surface Flow (shader в ParticleSystem)
-- PulseWaves (новый класс)
-- InnerSkeleton (новый класс, только онбординг)
-
-Начни с Surface Flow — это shader-only, без новых файлов.
-Затем PulseWaves и InnerSkeleton.
-
-Используй superpowers:executing-plans для пошагового выполнения.
-```
-
-### Время: ~5 часов
+- **PROTO**: fade in (0 → 1)
+- **CRYSTALLIZE**: peak → fade (1 → 0.5)
+- После CRYSTALLIZE: скрыт
 
 ---
 
-## Что было сделано ранее
+## Следующая сессия: Улучшения и Полировка
 
-### Anamnesis Complete (13/13 tasks) ✓
+### Возможные направления
 
+1. **Tuning визуалов**
+   - Подобрать оптимальные значения Flow/Pulse для разных эмоций
+   - Цветовая гамма PulseWaves под эмоциональное состояние
+
+2. **Mobile Performance**
+   - Тестирование на разных устройствах
+   - Уменьшение ringCount для слабых GPU
+
+3. **Sound Integration**
+   - Синхронизация PulseWaves с SampleSoundSystem
+   - Flow intensity → audio modulation
+
+4. **Shell Integration**
+   - Surface Flow для BeetleShell
+   - Уникальные PulseWaves паттерны для разных сущностей
+
+### Quick Fixes (если нужно)
+
+```javascript
+// Настройка Surface Flow в Sphere.js:1004-1014
+this.particles.setFlowSpeed(0.3 + flowIntensity * 0.7)
+this.particles.setFlowAmount(0.01 + flowIntensity * 0.02)
+
+// Настройка PulseWaves в PulseWaves.js:constructor
+this.ringCount = 12  // Уменьшить для mobile
+```
+
+---
+
+## Что было сделано
+
+### Full Living Sphere ✓
+| Коммит | Описание |
+|--------|----------|
+| 96608e7 | feat: implement Full Living Sphere — Surface Flow, PulseWaves, InnerSkeleton |
+| 219fe9b | docs: Full Living Sphere design + handoff |
+
+### Anamnesis Complete ✓
 | Коммит | Описание |
 |--------|----------|
 | ab1dd89 | docs: handoff — Anamnesis complete |
 | 1d12cc0 | feat: complete Anamnesis Phase 2 — Tier 2/3 enhancers |
-| 8c83c65 | docs: handoff — Anamnesis Phase 1 complete |
 | e8bd8b2 | feat: implement Anamnesis — 9-second consciousness birth |
-
-**Core:** VoidBackground, CameraBreathing, Assembly, Ego Death, First Breath, Eye.firstGaze()
-
-**Tier 2+:** UmbilicalSystem, Synesthesia Colors
-
-**Tier 3:** NeuralConnections (skeleton)
 
 ---
 
 ## Тестирование
 
 ```bash
-npm run dev
-http://localhost:5173/?reset
+npm run dev -- --host
 
-# Мобильный
-http://192.168.3.63:5173/?reset
+# Desktop
+http://localhost:5176
+
+# Mobile (same WiFi)
+http://192.168.3.63:5176
+
+# С онбордингом (InnerSkeleton visible)
+http://192.168.3.63:5176/?reset
 ```
 
 ---
@@ -79,16 +102,16 @@ http://192.168.3.63:5173/?reset
 ```
 src/
 ├── main.js
-├── Sphere.js
-├── ParticleSystem.js      # + Surface Flow (pending)
+├── Sphere.js              # + Flow/Pulse intensity control
+├── ParticleSystem.js      # + Surface Flow shader
 ├── Eye.js
 ├── LivingCore.js
+├── PulseWaves.js          # NEW ✓
+├── InnerSkeleton.js       # NEW ✓
 ├── VoidBackground.js
 ├── CameraBreathing.js
 ├── UmbilicalSystem.js
 ├── NeuralConnections.js
-├── OnboardingManager.js
-├── PulseWaves.js          # NEW (pending)
-├── InnerSkeleton.js       # NEW (pending)
+├── OnboardingManager.js   # + PulseWaves/InnerSkeleton integration
 └── ...
 ```
