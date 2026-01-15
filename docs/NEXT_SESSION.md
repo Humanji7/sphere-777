@@ -2,81 +2,83 @@
 
 **Обновлено:** 2026-01-15
 
+> Это единственный living doc. Остальные docs — статичные reference.
+
 ---
 
-## Full Living Sphere Complete ✓
+## Завершённые системы
 
-### Реализовано (commit 96608e7)
+### BioticNoise (commit d58120b)
+Органическая вариативность ритмов — drift ±8%, jitter ±2%, micro-pauses.
+- Интегрирован в `LivingCore.js` и `PulseWaves.js`
+- Тесты: `src/utils/tests/BioticNoise.test.js`
 
+### Full Living Sphere (commit 96608e7)
 | Система | Файл | Описание |
 |---------|------|----------|
-| **Surface Flow** | `ParticleSystem.js` | Tangential particle drift via simplex noise |
-| **PulseWaves** | `PulseWaves.js` | 12 концентрических колец с additive glow |
-| **InnerSkeleton** | `InnerSkeleton.js` | Icosahedron wireframe (только онбординг) |
+| Surface Flow | `ParticleSystem.js` | Tangential particle drift via simplex noise |
+| PulseWaves | `PulseWaves.js` | 12 концентрических колец с additive glow |
+| InnerSkeleton | `InnerSkeleton.js` | Icosahedron wireframe (только онбординг) |
 
-### Интенсивность по эмоциям
+### Anamnesis (commits e8bd8b2, 1d12cc0)
+9-секундное рождение сознания с Tier 1/2/3 enhancers.
 
-| Состояние | Flow Speed | Flow Amount | PulseWaves |
-|-----------|------------|-------------|------------|
-| Idle | 0.3 | 0.01 | 0.3 |
-| Interaction | 0.6 | 0.02 | 0.6 |
-| Max Tension | 1.0 | 0.03 | 1.0 |
+### Onboarding UI (commit 30624b5)
+Компактные модалки Settings/About, EmotionRing.
 
-### InnerSkeleton фазы
-
-- **PROTO**: fade in (0 → 1)
-- **CRYSTALLIZE**: peak → fade (1 → 0.5)
-- После CRYSTALLIZE: скрыт
+### Mobile (commit 1404fd4)
+Акселерометр, Capacitor setup, APK build.
 
 ---
 
-## Следующая сессия: Улучшения и Полировка
+## Следующие направления
 
-### Возможные направления
+| # | Направление | Описание |
+|---|-------------|----------|
+| 1 | **Tuning визуалов** | Flow/Pulse для разных эмоций, цвета PulseWaves |
+| 2 | **Mobile Performance** | Тестирование, ringCount для слабых GPU |
+| 3 | **Sound Integration** | PulseWaves + SampleSoundSystem синхронизация |
+| 4 | **Shell Integration** | Surface Flow для BeetleShell |
 
-1. **Tuning визуалов**
-   - Подобрать оптимальные значения Flow/Pulse для разных эмоций
-   - Цветовая гамма PulseWaves под эмоциональное состояние
+---
 
-2. **Mobile Performance**
-   - Тестирование на разных устройствах
-   - Уменьшение ringCount для слабых GPU
+## Документация
 
-3. **Sound Integration**
-   - Синхронизация PulseWaves с SampleSoundSystem
-   - Flow intensity → audio modulation
-
-4. **Shell Integration**
-   - Surface Flow для BeetleShell
-   - Уникальные PulseWaves паттерны для разных сущностей
-
-### Quick Fixes (если нужно)
-
-```javascript
-// Настройка Surface Flow в Sphere.js:1004-1014
-this.particles.setFlowSpeed(0.3 + flowIntensity * 0.7)
-this.particles.setFlowAmount(0.01 + flowIntensity * 0.02)
-
-// Настройка PulseWaves в PulseWaves.js:constructor
-this.ringCount = 12  // Уменьшить для mobile
+```
+docs/
+├── NEXT_SESSION.md      # ← ТЫ ЗДЕСЬ (living doc)
+├── ARCHITECTURE.md      # Модули, эмоции, жесты
+├── VISION.md            # Философия продукта
+├── reference/
+│   ├── SOUND_DESIGN.md  # Аудио архитектура
+│   ├── CAPACITOR.md     # Mobile setup
+│   ├── L7_GLITCH.md     # Glitch система
+│   └── IOS_SETUP.md     # iOS заметки
+└── plans/
+    ├── 2026-01-15-biotic-noise-design.md
+    └── 2026-01-13-techno-pet-philosophy.md
 ```
 
 ---
 
-## Что было сделано
+## Архитектура (краткая)
 
-### Full Living Sphere ✓
-| Коммит | Описание |
-|--------|----------|
-| 96608e7 | feat: implement Full Living Sphere — Surface Flow, PulseWaves, InnerSkeleton |
-| 219fe9b | docs: Full Living Sphere design + handoff |
-
-### Anamnesis Complete ✓
-| Коммит | Описание |
-|--------|----------|
-| ab1dd89 | docs: handoff — Anamnesis complete |
-| 1d12cc0 | feat: complete Anamnesis Phase 2 — Tier 2/3 enhancers |
-| e8bd8b2 | feat: implement Anamnesis — 9-second consciousness birth |
+```
+src/
+├── main.js              # Entry, RAF loop
+├── Sphere.js            # Эмоции, координация
+├── ParticleSystem.js    # GPU, Surface Flow
+├── Eye.js               # Глаз
+├── LivingCore.js        # 3-слойное свечение + BioticNoise
+├── PulseWaves.js        # Кольца + BioticNoise
+├── InnerSkeleton.js     # Icosahedron (онбординг)
+├── IdleAgency.js        # Инициатива при бездействии
+├── OrganicTicks.js      # Микро-движения
+├── OnboardingManager.js # Anamnesis
+├── utils/
+│   └── BioticNoise.js   # Органические ритмы
+└── ...                  # См. ARCHITECTURE.md для полного списка
+```
 
 ---
 
@@ -85,33 +87,15 @@ this.ringCount = 12  // Уменьшить для mobile
 ```bash
 npm run dev -- --host
 
-# Desktop
-http://localhost:5176
-
-# Mobile (same WiFi)
-http://192.168.3.63:5176
-
-# С онбордингом (InnerSkeleton visible)
-http://192.168.3.63:5176/?reset
+# Desktop: http://localhost:5173
+# Mobile:  http://<your-ip>:5173
+# Reset:   http://<your-ip>:5173/?reset
 ```
 
 ---
 
-## Архитектура
+## Известные ограничения
 
-```
-src/
-├── main.js
-├── Sphere.js              # + Flow/Pulse intensity control
-├── ParticleSystem.js      # + Surface Flow shader
-├── Eye.js
-├── LivingCore.js
-├── PulseWaves.js          # NEW ✓
-├── InnerSkeleton.js       # NEW ✓
-├── VoidBackground.js
-├── CameraBreathing.js
-├── UmbilicalSystem.js
-├── NeuralConnections.js
-├── OnboardingManager.js   # + PulseWaves/InnerSkeleton integration
-└── ...
-```
+- **ParticleSystem + BioticNoise** — не интегрированы напрямую (эффект через LivingCore)
+- **BeetleShell** — нет Surface Flow
+- **Sound** — не синхронизирован с PulseWaves
