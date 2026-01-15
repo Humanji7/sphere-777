@@ -25,6 +25,8 @@ import { UIManager } from './ui/UIManager.js'
 import { AccelerometerManager } from './AccelerometerManager.js'
 import { VoidBackground } from './VoidBackground.js'
 import { CameraBreathing } from './CameraBreathing.js'
+import { UmbilicalSystem } from './UmbilicalSystem.js'
+import { NeuralConnections } from './NeuralConnections.js'
 import { detectGPUTier } from './utils/GPUTier.js'
 
 /**
@@ -177,6 +179,16 @@ class App {
 
         this.cameraBreathing = new CameraBreathing(this.camera)
 
+        // Tier 2+ enhancers
+        if (this.gpuTier >= 2) {
+            this.umbilicalSystem = new UmbilicalSystem(this.particleSystem, this.scene)
+        }
+
+        // Tier 3 premium
+        if (this.gpuTier >= 3) {
+            this.neuralConnections = new NeuralConnections(this.particleSystem, this.scene)
+        }
+
         // Eye (organic particle-based, with size multiplier)
         this.eye = new Eye(this.particleSystem.baseRadius, this.sizeMultiplier)
         if (this.platformConfig.sphereScale !== 1.0) {
@@ -252,6 +264,8 @@ class App {
             eye: this.eye,
             voidBackground: this.voidBackground,      // Anamnesis
             cameraBreathing: this.cameraBreathing,    // Anamnesis
+            umbilicalSystem: this.umbilicalSystem,    // Anamnesis Tier 2+
+            neuralConnections: this.neuralConnections, // Anamnesis Tier 3
             gpuTier: this.gpuTier,                    // Anamnesis
             onComplete: () => this._onOnboardingComplete()
         })
@@ -266,7 +280,13 @@ class App {
             this.voidBackground.setVisible(false)
         }
         if (this.cameraBreathing) {
-            this.cameraBreathing.disable()
+            this.cameraBreathing.disableSmooth(600)  // Smooth 600ms transition
+        }
+        if (this.umbilicalSystem) {
+            this.umbilicalSystem.setVisible(false)
+        }
+        if (this.neuralConnections) {
+            this.neuralConnections.setVisible(false)
         }
 
         // Start the main experience

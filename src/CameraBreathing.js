@@ -24,6 +24,41 @@ export class CameraBreathing {
     this.camera.position.copy(this.basePosition)
   }
 
+  /**
+   * Smoothly disable breathing with fade-out transition
+   * @param {number} duration - Transition duration in ms (default 600)
+   */
+  disableSmooth(duration = 600) {
+    if (!this.enabled) return
+
+    const startPos = this.camera.position.clone()
+    const startTime = performance.now()
+
+    const animate = () => {
+      const elapsed = performance.now() - startTime
+      const progress = Math.min(1, elapsed / duration)
+
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
+
+      // Lerp to base position
+      this.camera.position.x = startPos.x + (this.basePosition.x - startPos.x) * eased
+      this.camera.position.y = startPos.y + (this.basePosition.y - startPos.y) * eased
+      this.camera.position.z = startPos.z + (this.basePosition.z - startPos.z) * eased
+
+      if (progress < 1) {
+        requestAnimationFrame(animate)
+      } else {
+        this.enabled = false
+        this.camera.position.copy(this.basePosition)
+      }
+    }
+
+    // Stop breathing updates during transition
+    this.enabled = false
+    requestAnimationFrame(animate)
+  }
+
   update(breathPhase, assemblyProgress) {
     if (!this.enabled) return
 

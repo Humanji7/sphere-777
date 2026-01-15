@@ -55,6 +55,8 @@ export class OnboardingManager {
         // Anamnesis components (optional)
         this.voidBackground = options.voidBackground
         this.cameraBreathing = options.cameraBreathing
+        this.umbilicalSystem = options.umbilicalSystem      // Tier 2+
+        this.neuralConnections = options.neuralConnections  // Tier 3
         this.gpuTier = options.gpuTier || 2
 
         // Anamnesis state
@@ -329,6 +331,31 @@ export class OnboardingManager {
         } else {
             if (this.particleSystem) {
                 this.particleSystem.setEgoDeathIntensity(0)
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // TIER 2+ FEATURES: Umbilical cords and Synesthesia colors
+        // ═══════════════════════════════════════════════════════════
+        if (this.gpuTier >= 2) {
+            // Umbilical cords (birth connections from nebula)
+            if (this.umbilicalSystem) {
+                this.umbilicalSystem.update(assemblyProgress, stateTime / 1000)
+            }
+
+            // Synesthesia colors during SPIRAL phase
+            const synAmount = currentPhase === 'SPIRAL' ? 0.4 : 0
+            if (this.particleSystem?.setSynesthesiaAmount) {
+                this.particleSystem.setSynesthesiaAmount(synAmount)
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // TIER 3 FEATURES: Neural connections (premium)
+        // ═══════════════════════════════════════════════════════════
+        if (this.gpuTier >= 3) {
+            if (this.neuralConnections) {
+                this.neuralConnections.update(assemblyProgress, stateTime / 1000)
             }
         }
 

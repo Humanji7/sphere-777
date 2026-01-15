@@ -762,6 +762,8 @@ export class ParticleSystem {
         uniform float uGlobalOpacity;       // 1.0 = visible, 0 = hidden
         // Ego Death
         uniform float uEgoDeathIntensity;   // 0-1, whiteout effect
+        // Synesthesia
+        uniform float uSynesthesiaAmount;   // 0-1, color-as-sound effect
 
         varying float vType;
         varying float vSeed;
@@ -953,6 +955,28 @@ export class ParticleSystem {
             color = mix(color, vec3(1.0), whiteout);
           }
 
+          // SYNESTHESIA: Internal rhythm becomes color
+          // "On deep levels, all senses are one"
+          if (uSynesthesiaAmount > 0.0) {
+            float particleFreq = vSeed * 440.0 + 220.0;  // Hz range (A3-A4)
+            float freqNorm = (particleFreq - 220.0) / 440.0;
+
+            vec3 synColor;
+            if (freqNorm < 0.33) {
+              // Low freq: red → orange
+              synColor = mix(vec3(1.0, 0.2, 0.1), vec3(1.0, 0.6, 0.2), freqNorm * 3.0);
+            } else if (freqNorm < 0.66) {
+              // Mid freq: yellow → green
+              synColor = mix(vec3(1.0, 1.0, 0.3), vec3(0.3, 1.0, 0.5), (freqNorm - 0.33) * 3.0);
+            } else {
+              // High freq: cyan → purple
+              synColor = mix(vec3(0.3, 0.8, 1.0), vec3(0.7, 0.3, 1.0), (freqNorm - 0.66) * 3.0);
+            }
+
+            float rhythm = sin(uTime * particleFreq * 0.01) * 0.5 + 0.5;
+            color = mix(color, synColor, uSynesthesiaAmount * rhythm * 0.4);
+          }
+
           gl_FragColor = vec4(color, alpha);
         }
     `
@@ -1025,7 +1049,9 @@ export class ParticleSystem {
         uAssemblyProgress: { value: 1.0 },  // 0 = scattered, 1 = sphere
         uAssemblyPhase: { value: 0 },       // Current phase for effects
         // Ego Death (brief dissolution before crystallization)
-        uEgoDeathIntensity: { value: 0 }    // 0-1, bell curve during ego death
+        uEgoDeathIntensity: { value: 0 },   // 0-1, bell curve during ego death
+        // Synesthesia (Tier 2+ color effect)
+        uSynesthesiaAmount: { value: 0 }    // 0-1, colors as sound frequencies
       },
       vertexShader: this._generateVertexShader(),
       fragmentShader: this._generateFragmentShader(),
@@ -1455,6 +1481,15 @@ export class ParticleSystem {
    */
   setEgoDeathIntensity(intensity) {
     this.material.uniforms.uEgoDeathIntensity.value = Math.max(0, Math.min(1, intensity))
+  }
+
+  /**
+   * Set synesthesia color effect (colors as sound frequencies)
+   * Tier 2+ feature — particles display rainbow colors during assembly
+   * @param {number} amount - 0-1
+   */
+  setSynesthesiaAmount(amount) {
+    this.material.uniforms.uSynesthesiaAmount.value = Math.max(0, Math.min(1, amount))
   }
 
   /**
