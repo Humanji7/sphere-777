@@ -1,6 +1,6 @@
 # SPHERE-777: Текущий Статус
 
-**Обновлено:** 2026-01-15
+**Обновлено:** 2026-01-16
 
 > Это единственный living doc. Остальные docs — статичные reference.
 
@@ -31,26 +31,32 @@
 
 ---
 
-## Следующий шаг: Unity Migration
+## Unity Migration
 
+> **Handoff:** `docs/HANDOFF_UNITY_MIGRATION.md`
 > **План:** `docs/plans/2026-01-15-unity-migration.md`
 
-**Причина:** Three.js + Capacitor = 30-45 FPS. Unity native = 60 FPS стабильно.
+### День 1: Валидация ✅ COMPLETE
 
-### День 1: Валидация
+| Тест | Three.js | Unity 6 |
+|------|----------|---------|
+| 5000 частиц | 30-45 FPS | **100-200 FPS** |
+| CPU time | ~30ms | **5-10ms** |
+
+**Unity в 3-6x быстрее.**
+
+### День 2-3: Core Systems (NEXT)
 ```
-□ Установить Unity 6 LTS
-□ Установить MCP Unity package
-□ Тест: сфера с частицами
-□ Build APK → проверить FPS
+□ Particle Sphere (VFX Graph, Fibonacci)
+□ Eye (sprite, pupil tracking, blink)
+□ Emotion FSM
+□ Touch Input
+□ Build APK → тест Android
 ```
 
-**Критерий успеха:** 60 FPS на Android
-
-### После валидации (7-10 дней)
-- P0: Particle Sphere, Eye, Emotion FSM, Input
-- P1: LivingCore, PulseWaves, IdleAgency, OrganicTicks
-- P2: Sound, Haptics, Onboarding, UI
+### День 4-7: Life + Polish
+- LivingCore, PulseWaves, IdleAgency, OrganicTicks
+- Sound, Haptics, Onboarding, UI
 
 ---
 
