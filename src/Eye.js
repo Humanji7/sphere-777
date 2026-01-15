@@ -1019,6 +1019,49 @@ export class Eye {
   }
 
   /**
+   * First Gaze — The moment she sees you
+   * "I see you" — recognition, not just looking
+   */
+  async firstGaze(userPosition = new THREE.Vector3(0, 0, 3)) {
+    // 1. Start unfocused
+    this.setBlur(0.3)
+    await this._wait(200)
+
+    // 2. Sense (subtle searching)
+    await this._wait(400)
+
+    // 3. Turn toward user
+    this.lookAt(userPosition)
+    await this._wait(300)
+
+    // 4. Focus sharpens
+    this.setBlur(0)
+    await this._wait(200)
+
+    // 5. Pupil dilates (recognition)
+    this.setDilation(0.4)
+    await this._wait(200)
+
+    // 6. Micro-nod
+    const mesh = this.getMesh()
+    const originalY = mesh.position.y
+    mesh.position.y -= 0.02
+    await this._wait(150)
+    mesh.position.y = originalY
+
+    // 7. Return pupil to normal
+    await this._wait(300)
+    this.setDilation(0)
+  }
+
+  /**
+   * Helper for async delays
+   */
+  _wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  /**
    * Cleanup
    */
   dispose() {

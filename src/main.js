@@ -23,6 +23,9 @@ import { CharacterPanel } from './CharacterPanel.js'
 import { OnboardingManager } from './OnboardingManager.js'
 import { UIManager } from './ui/UIManager.js'
 import { AccelerometerManager } from './AccelerometerManager.js'
+import { VoidBackground } from './VoidBackground.js'
+import { CameraBreathing } from './CameraBreathing.js'
+import { detectGPUTier } from './utils/GPUTier.js'
 
 /**
  * Main application entry point
@@ -30,6 +33,13 @@ import { AccelerometerManager } from './AccelerometerManager.js'
  */
 class App {
     constructor() {
+        // Reset onboarding via ?reset URL param
+        if (window.location.search.includes('reset')) {
+            localStorage.removeItem('sphere_awakened')
+            window.location.href = window.location.pathname
+            return
+        }
+
         this.canvas = document.getElementById('canvas')
 
         this.isStarted = false
@@ -158,6 +168,15 @@ class App {
 
         this.scene.add(this.particleSystem.getMesh())
 
+        // Anamnesis systems (onboarding)
+        this.gpuTier = detectGPUTier()
+        console.log(`[App] GPU Tier: ${this.gpuTier}`)
+
+        this.voidBackground = new VoidBackground(this.scene)
+        this.voidBackground.setVisible(false)  // Start hidden
+
+        this.cameraBreathing = new CameraBreathing(this.camera)
+
         // Eye (organic particle-based, with size multiplier)
         this.eye = new Eye(this.particleSystem.baseRadius, this.sizeMultiplier)
         if (this.platformConfig.sphereScale !== 1.0) {
@@ -231,6 +250,9 @@ class App {
             particleSystem: this.particleSystem,
             livingCore: this.livingCore,
             eye: this.eye,
+            voidBackground: this.voidBackground,      // Anamnesis
+            cameraBreathing: this.cameraBreathing,    // Anamnesis
+            gpuTier: this.gpuTier,                    // Anamnesis
             onComplete: () => this._onOnboardingComplete()
         })
 
@@ -239,6 +261,14 @@ class App {
     }
 
     _onOnboardingComplete() {
+        // Disable Anamnesis systems
+        if (this.voidBackground) {
+            this.voidBackground.setVisible(false)
+        }
+        if (this.cameraBreathing) {
+            this.cameraBreathing.disable()
+        }
+
         // Start the main experience
         this._start()
 

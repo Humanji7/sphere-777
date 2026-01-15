@@ -15,12 +15,31 @@ const STORAGE_KEY = 'sphere_awakened'
 const STATES = {
     IDLE: 'IDLE',
     VOID: 'VOID',
+    FIRST_SPARK: 'FIRST_SPARK',    // Anamnesis
     RESONANCE: 'RESONANCE',
+    SPIRAL: 'SPIRAL',              // Anamnesis
+    PROTO: 'PROTO',                // Anamnesis
+    EGO_DEATH: 'EGO_DEATH',        // Anamnesis
+    CRYSTALLIZE: 'CRYSTALLIZE',    // Anamnesis
+    FIRST_BREATH: 'FIRST_BREATH',  // Anamnesis
     MEETING: 'MEETING',
     THRESHOLD: 'THRESHOLD',
     OPENING: 'OPENING',
     RETURNING: 'RETURNING',
     LIVING: 'LIVING'
+}
+
+// Anamnesis timing (9 seconds total)
+const ANAMNESIS_TIMING = {
+    VOID: { start: 0, end: 0.8 },
+    FIRST_SPARK: { start: 0.8, end: 1.0 },
+    RESONANCE: { start: 1.0, end: 1.5 },
+    SPIRAL: { start: 1.5, end: 4.0 },
+    PROTO: { start: 4.0, end: 5.5 },
+    EGO_DEATH: { start: 5.5, end: 6.0 },
+    CRYSTALLIZE: { start: 6.0, end: 6.5 },
+    FIRST_BREATH: { start: 6.5, end: 8.5 },
+    OPENING: { start: 8.5, end: 9.0 },
 }
 
 export class OnboardingManager {
@@ -32,6 +51,15 @@ export class OnboardingManager {
         this.livingCore = options.livingCore
         this.eye = options.eye
         this.canvas = options.canvas
+
+        // Anamnesis components (optional)
+        this.voidBackground = options.voidBackground
+        this.cameraBreathing = options.cameraBreathing
+        this.gpuTier = options.gpuTier || 2
+
+        // Anamnesis state
+        this.anamnesisTotalDuration = 9000  // 9 seconds
+        this.anamnesisStartTime = 0
 
         // Callbacks
         this.onComplete = options.onComplete || (() => {})
@@ -159,7 +187,37 @@ export class OnboardingManager {
     _enterVoid() {
         this._announce('Загрузка...')
 
-        // Quick — just darkness moment (total onboarding ~10 sec)
+        // Anamnesis mode for first launch
+        if (this.isFirstLaunch && this.voidBackground) {
+            this.anamnesisStartTime = performance.now()
+
+            // Hide all sphere elements
+            this._setOpacity(0)
+            if (this.eye) this.eye.setGlobalOpacity(0)
+
+            // Start void background
+            this.voidBackground.setVisible(true)
+            this.voidBackground.update(0, 0, 0.1, 0)
+
+            // Set assembly to 0 (nebula)
+            if (this.particleSystem) {
+                this.particleSystem.setAssemblyProgress(0)
+            }
+
+            // Enable camera breathing
+            if (this.cameraBreathing) {
+                this.cameraBreathing.enable()
+            }
+
+            this.stateData = {
+                duration: this.anamnesisTotalDuration,
+                eyeAppeared: false,
+                breathStarted: false
+            }
+            return
+        }
+
+        // Legacy mode (no Anamnesis)
         const duration = this.reducedMotion
             ? this._randomRange(300, 500)
             : this._randomRange(600, 1000)
@@ -175,7 +233,13 @@ export class OnboardingManager {
     }
 
     _updateVoid(delta, stateTime) {
-        // Exit condition: audio ready AND duration elapsed
+        // Anamnesis mode: unified 9-second timeline
+        if (this.isFirstLaunch && this.voidBackground) {
+            this._updateAnamnesis(delta, stateTime)
+            return
+        }
+
+        // Legacy mode
         const audioCondition = this.audioReady || this.audioFailed || stateTime > 1000
         const durationCondition = stateTime >= this.stateData.duration
 
@@ -184,8 +248,155 @@ export class OnboardingManager {
         }
     }
 
+    /**
+     * Anamnesis: Unified 9-second consciousness birth sequence
+     * "User witnesses birth of consciousness, not animation"
+     */
+    _updateAnamnesis(delta, stateTime) {
+        // Debug first frame
+        if (!this.stateData.debugLogged) {
+            console.log(`[Anamnesis] Start — stateTime: ${stateTime}, totalDuration: ${this.anamnesisTotalDuration}`)
+            this.stateData.debugLogged = true
+        }
+
+        const timing = ANAMNESIS_TIMING
+
+        // Determine current phase
+        let currentPhase = 'VOID'
+        for (const [phase, { start, end }] of Object.entries(timing)) {
+            const startMs = start * 1000
+            const endMs = end * 1000
+            if (stateTime >= startMs && stateTime < endMs) {
+                currentPhase = phase
+                break
+            }
+        }
+
+        // Assembly progress mapping (0 at SPIRAL start, 1 at CRYSTALLIZE end)
+        let assemblyProgress = 0
+        if (stateTime < timing.SPIRAL.start * 1000) {
+            assemblyProgress = 0
+        } else if (stateTime < timing.CRYSTALLIZE.end * 1000) {
+            const spiralStart = timing.SPIRAL.start * 1000
+            const crystalEnd = timing.CRYSTALLIZE.end * 1000
+            assemblyProgress = (stateTime - spiralStart) / (crystalEnd - spiralStart)
+        } else {
+            assemblyProgress = 1
+        }
+
+        // Update particle system
+        if (this.particleSystem) {
+            this.particleSystem.setAssemblyProgress(assemblyProgress)
+        }
+
+        // Void background
+        if (this.voidBackground) {
+            const awakening = Math.min(1, stateTime / 2000)
+            const seedVisible = currentPhase === 'FIRST_SPARK' ? 1 : 0
+            this.voidBackground.update(
+                stateTime / 1000,
+                this.particleSystem?.breathPhase || 0,
+                awakening,
+                seedVisible
+            )
+            // Fade out after RESONANCE
+            if (stateTime > timing.RESONANCE.end * 1000) {
+                this.voidBackground.setVisible(false)
+            }
+        }
+
+        // Camera breathing
+        if (this.cameraBreathing) {
+            this.cameraBreathing.update(
+                this.particleSystem?.breathPhase || 0,
+                assemblyProgress
+            )
+        }
+
+        // Ego Death
+        if (currentPhase === 'EGO_DEATH') {
+            const egoStart = timing.EGO_DEATH.start * 1000
+            const egoEnd = timing.EGO_DEATH.end * 1000
+            const egoProgress = (stateTime - egoStart) / (egoEnd - egoStart)
+            // Bell curve: sin(π * progress)
+            const egoIntensity = Math.sin(Math.PI * egoProgress)
+            if (this.particleSystem) {
+                this.particleSystem.setEgoDeathIntensity(egoIntensity)
+            }
+            if (this.cameraBreathing) {
+                this.cameraBreathing.shake(egoIntensity * 0.5)
+            }
+        } else {
+            if (this.particleSystem) {
+                this.particleSystem.setEgoDeathIntensity(0)
+            }
+        }
+
+        // Opacity fade-in (starts at FIRST_SPARK)
+        if (stateTime > timing.FIRST_SPARK.start * 1000) {
+            const fadeProgress = Math.min(1, (stateTime - timing.FIRST_SPARK.start * 1000) / 3000)
+            if (this.particleSystem) {
+                this.particleSystem.setGlobalOpacity(fadeProgress)
+            }
+            if (this.livingCore) {
+                this.livingCore.setGlobalOpacity(fadeProgress * 0.8)
+            }
+        }
+
+        // Eye appears at OPENING
+        if (currentPhase === 'OPENING' && !this.stateData.eyeAppeared) {
+            this.stateData.eyeAppeared = true
+            if (this.eye) {
+                this.eye.setGlobalOpacity(1)
+                this.eye.firstGaze()
+            }
+        }
+
+        // First Breath
+        if (currentPhase === 'FIRST_BREATH' && !this.stateData.breathStarted) {
+            this.stateData.breathStarted = true
+            this._triggerFirstBreath()
+        }
+
+        // Complete
+        if (stateTime >= this.anamnesisTotalDuration) {
+            this._transitionTo(STATES.LIVING)
+        }
+    }
+
+    /**
+     * Trigger dramatic first breath
+     */
+    _triggerFirstBreath() {
+        if (!this.particleSystem) return
+
+        // Brief contraction
+        const originalBreath = this.particleSystem.breathAmount || 0.088
+        this.particleSystem.breathAmount = 0.05
+
+        // After 300ms, deep inhale
+        this._setTimeout(() => {
+            if (this.particleSystem) {
+                this.particleSystem.breathAmount = originalBreath * 1.2
+            }
+        }, 300)
+
+        // Normal breathing after 1.5s
+        this._setTimeout(() => {
+            if (this.particleSystem) {
+                this.particleSystem.breathAmount = originalBreath
+            }
+        }, 1800)
+    }
+
     _exitVoid() {
-        // Nothing to cleanup — opacity stays at 0 for RESONANCE entry
+        // Cleanup Anamnesis systems
+        if (this.voidBackground) {
+            this.voidBackground.setVisible(false)
+        }
+        if (this.cameraBreathing) {
+            this.cameraBreathing.disable()
+        }
     }
 
     // ═══════════════════════════════════════════════════════════

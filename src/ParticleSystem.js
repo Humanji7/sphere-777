@@ -80,6 +80,8 @@ export class ParticleSystem {
     this.scarOffsets = new Float32Array(this.count * 3)
     // Random seed for each particle
     this.seeds = new Float32Array(this.count)
+    // Scattered positions (for assembly animation)
+    this.scatteredPositions = new Float32Array(this.count * 3)
 
     // Initialize particles on sphere surface
     for (let i = 0; i < this.count; i++) {
@@ -106,6 +108,22 @@ export class ParticleSystem {
 
       // Random seed
       this.seeds[i] = Math.random()
+
+      // Generate nebula distribution for scattered positions
+      const armIndex = i % 5  // 5 spiral arms
+      const armAngle = (armIndex / 5) * Math.PI * 2
+      const armProgress = (i / this.count)
+
+      // Golden spiral with noise
+      const spiralR = 3 + armProgress * 4  // 3-7 units from center
+      const spiralAngle = armAngle + armProgress * Math.PI * 3
+
+      // Add randomness
+      const jitter = 0.5 + Math.random() * 1.5
+
+      this.scatteredPositions[i3] = Math.cos(spiralAngle) * spiralR * jitter
+      this.scatteredPositions[i3 + 1] = (Math.random() - 0.5) * 3  // Y spread
+      this.scatteredPositions[i3 + 2] = Math.sin(spiralAngle) * spiralR * jitter
     }
 
     this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3))
@@ -113,6 +131,7 @@ export class ParticleSystem {
     this.geometry.setAttribute('aType', new THREE.BufferAttribute(this.types, 1))
     this.geometry.setAttribute('aSeed', new THREE.BufferAttribute(this.seeds, 1))
     this.geometry.setAttribute('aBleedPhase', new THREE.BufferAttribute(this.bleedingPhases, 1))
+    this.geometry.setAttribute('aScatteredPos', new THREE.BufferAttribute(this.scatteredPositions, 3))
 
     // Create sensitivity map for organic zones
     this._createSensitivityMap()
@@ -259,7 +278,8 @@ export class ParticleSystem {
         attribute vec3 aOriginalPos;
         attribute float aBleedPhase;
         attribute float aSensitivity;  // 0.4-1.6, sensitivity per particle
-        
+        attribute vec3 aScatteredPos;  // Nebula position for assembly
+
         uniform float uTime;
         uniform float uBreathPhase;
         uniform float uBreathAmount;
@@ -308,7 +328,12 @@ export class ParticleSystem {
         // Sensitivity Zones
         uniform vec3 uSensitivityDrift;
         uniform float uSensitivityContrast;
-        
+        // Assembly (Anamnesis onboarding)
+        uniform float uAssemblyProgress;  // 0 = nebula, 1 = sphere
+        uniform float uAssemblyPhase;     // Stage-specific effects
+        // Ego Death
+        uniform float uEgoDeathIntensity; // 0-1, dissolution chaos
+
         varying float vType;
         varying float vSeed;
         varying float vBleedPhase;
@@ -409,7 +434,41 @@ export class ParticleSystem {
           vSensitivity = adjustedSensitivity;
           
           vec3 pos = position;
-          
+
+          // ═══════════════════════════════════════════════════════════
+          // ASSEMBLY: Interpolate between scattered nebula and sphere
+          // ═══════════════════════════════════════════════════════════
+          if (uAssemblyProgress < 1.0) {
+            vec3 nebulaPos = aScatteredPos;
+            vec3 spherePos = aOriginalPos;
+
+            // Smooth easing for assembly
+            float assemblyT = smoothstep(0.0, 1.0, uAssemblyProgress);
+
+            // Personal timing: each particle has slight delay based on distance
+            float personalDelay = length(aScatteredPos) * 0.05;
+            float personalProgress = clamp((assemblyT - personalDelay) / (1.0 - personalDelay), 0.0, 1.0);
+
+            // Cubic ease-out for natural deceleration
+            personalProgress = 1.0 - pow(1.0 - personalProgress, 3.0);
+
+            // Base position from assembly
+            pos = mix(nebulaPos, spherePos, personalProgress);
+          }
+
+          // ═══════════════════════════════════════════════════════════
+          // EGO DEATH: Brief dissolution before crystallization
+          // "To be born, you must first die"
+          // ═══════════════════════════════════════════════════════════
+          if (uEgoDeathIntensity > 0.0) {
+            vec3 chaosOffset = vec3(
+              snoise(aOriginalPos * 10.0 + uTime * 5.0) - 0.5,
+              snoise(aOriginalPos * 10.0 + uTime * 5.0 + 100.0) - 0.5,
+              snoise(aOriginalPos * 10.0 + uTime * 5.0 + 200.0) - 0.5
+            ) * uEgoDeathIntensity * 0.3;
+            pos += chaosOffset;
+          }
+
           // Combined Breathing, Boiling, and Heartbeat
           float unifiedCurve = 0.5; // Default for non-breathing particles
           
@@ -701,6 +760,8 @@ export class ParticleSystem {
         uniform float uTransformFade;       // 1.0 = visible, 0 = hidden during shell transition
         // Global opacity (for onboarding fade-in)
         uniform float uGlobalOpacity;       // 1.0 = visible, 0 = hidden
+        // Ego Death
+        uniform float uEgoDeathIntensity;   // 0-1, whiteout effect
 
         varying float vType;
         varying float vSeed;
@@ -886,6 +947,12 @@ export class ParticleSystem {
           // GLOBAL OPACITY: for onboarding fade-in
           alpha *= uGlobalOpacity;
 
+          // EGO DEATH: white-out during peak
+          if (uEgoDeathIntensity > 0.0) {
+            float whiteout = uEgoDeathIntensity * 0.5;
+            color = mix(color, vec3(1.0), whiteout);
+          }
+
           gl_FragColor = vec4(color, alpha);
         }
     `
@@ -953,7 +1020,12 @@ export class ParticleSystem {
         // Transformation fade (shells)
         uTransformFade: { value: 1.0 },  // 1.0 = visible, 0 = hidden
         // Global opacity (onboarding)
-        uGlobalOpacity: { value: 1.0 }   // 1.0 = visible, 0 = hidden
+        uGlobalOpacity: { value: 1.0 },  // 1.0 = visible, 0 = hidden
+        // Assembly (Anamnesis onboarding)
+        uAssemblyProgress: { value: 1.0 },  // 0 = scattered, 1 = sphere
+        uAssemblyPhase: { value: 0 },       // Current phase for effects
+        // Ego Death (brief dissolution before crystallization)
+        uEgoDeathIntensity: { value: 0 }    // 0-1, bell curve during ego death
       },
       vertexShader: this._generateVertexShader(),
       fragmentShader: this._generateFragmentShader(),
@@ -1359,6 +1431,30 @@ export class ParticleSystem {
    */
   setGlobalOpacity(opacity) {
     this.material.uniforms.uGlobalOpacity.value = Math.max(0, Math.min(1, opacity))
+  }
+
+  /**
+   * Set assembly progress for onboarding animation
+   * @param {number} progress - 0 (scattered nebula) to 1 (complete sphere)
+   */
+  setAssemblyProgress(progress) {
+    this.material.uniforms.uAssemblyProgress.value = Math.max(0, Math.min(1, progress))
+  }
+
+  /**
+   * Set assembly phase for stage-specific effects
+   * @param {number} phase - 0-8 corresponding to VOID→LIVING stages
+   */
+  setAssemblyPhase(phase) {
+    this.material.uniforms.uAssemblyPhase.value = phase
+  }
+
+  /**
+   * Set ego death intensity for dissolution effect
+   * @param {number} intensity - 0-1, peaks at ~0.85 assembly
+   */
+  setEgoDeathIntensity(intensity) {
+    this.material.uniforms.uEgoDeathIntensity.value = Math.max(0, Math.min(1, intensity))
   }
 
   /**
