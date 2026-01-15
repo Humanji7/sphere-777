@@ -4,102 +4,144 @@
 
 ---
 
-## Последняя сессия: Anamnesis (Phase 1 Core)
+## Последняя сессия: Anamnesis Complete (13/13 tasks)
 
 ### Сделано
 
-**Anamnesis — 9-секундная анимация "рождения сознания"**
+**Anamnesis — 9-секундная анимация "рождения сознания"** — полностью реализована.
 
-Реализованы Core системы (Tasks 1-9 из 13):
+| Коммит | Описание |
+|--------|----------|
+| 1d12cc0 | feat: complete Anamnesis Phase 2 — Tier 2/3 enhancers |
+| 8c83c65 | docs: handoff — Anamnesis Phase 1 complete |
+| e8bd8b2 | feat: implement Anamnesis — 9-second consciousness birth |
 
-| Файл | Что делает |
-|------|------------|
-| `src/utils/GPUTier.js` | Определение GPU (tier 1-3) для progressive enhancement |
-| `src/VoidBackground.js` | Fullscreen shader — живая тьма с туманностью и дыханием |
-| `src/CameraBreathing.js` | Камера дышит вместе со сферой |
-| `src/ParticleSystem.js` | +assembly uniforms, scattered positions (5-рукавная спираль), ego death |
-| `src/Eye.js` | `firstGaze()` — async последовательность (blur → focus → dilate → nod) |
-| `src/OnboardingManager.js` | Unified 9-sec timeline с новыми states |
-| `src/main.js` | Wiring + `?reset` URL param для тестирования |
+**Core (все устройства):**
+- VoidBackground — живая тьма с туманностью
+- CameraBreathing — камера дышит со сферой
+- Assembly animation — частицы собираются из nebula
+- Ego Death — хаотичное растворение перед кристаллизацией
+- First Breath — контракция → глубокий вдох
+- Eye.firstGaze() — момент узнавания
 
-**Timeline (9 секунд):**
-```
-VOID (0-0.8s) → FIRST_SPARK (0.8-1s) → RESONANCE (1-1.5s) →
-SPIRAL (1.5-4s) → PROTO (4-5.5s) → EGO_DEATH (5.5-6s) →
-CRYSTALLIZE (6-6.5s) → FIRST_BREATH (6.5-8.5s) → OPENING (8.5-9s) → LIVING
-```
+**Tier 2+ (mid-range устройства):**
+- UmbilicalSystem — 300 золотых пуповин от nebula к сфере
+- Synesthesia Colors — rainbow частицы по "частоте" во время SPIRAL
 
-**Эффекты:**
-- Частицы начинают в spiral nebula, собираются в сферу
-- Ego death — хаотичное смещение + whiteout
-- Camera shake во время ego death
-- First breath — контракция → глубокий вдох
-- Eye appears и делает firstGaze()
+**Tier 3 (high-end устройства):**
+- NeuralConnections — синаптические связи (skeleton)
+
+**Polish:**
+- Smooth camera transition (600ms ease-out) при завершении онбординга
 
 ---
 
-## Для следующей сессии
+## Что дальше? (предложения)
 
-### Оставшиеся Tasks (10-13): Tier 2/3 Enhancers
+### 1. Audio Integration (высокий приоритет)
+Anamnesis визуально готов, но без звука. SampleSoundSystem уже есть.
 
-| Task | Описание | Tier |
-|------|----------|------|
-| 10 | UmbilicalSystem — золотые "пуповины" от nebula к сфере | 2+ |
-| 11 | Synesthesia Colors — rainbow частицы по "частоте" | 2+ |
-| 12 | NeuralConnections — синаптические связи (skeleton) | 3 |
-| 13 | Tier-Based Feature Activation в OnboardingManager | all |
+**Идеи:**
+- Ambient drone во время VOID (low frequency)
+- Heartbeat pulse синхронно с breathing
+- Crystallization sound при ego death → crystallize
+- First breath — реальный вдох/выдох sample
 
-**План:** `docs/plans/2026-01-14-anamnesis-implementation.md`
-
-### Тестирование
-
-Сброс онбординга для повторного просмотра:
-```
-http://localhost:5174/?reset
-```
-
-### Известные проблемы
-
-1. **Playwright visibility** — браузер теряет focus, triggering pause. На реальном устройстве работает.
-2. **Debug log** — временный `[Anamnesis] Start` в console (можно удалить).
+**Файлы:** `src/SampleSoundSystem.js`, `src/OnboardingManager.js`
 
 ---
 
-## Архитектура (обновлено)
+### 2. NeuralConnections полная реализация (Tier 3)
+Сейчас skeleton с static connections. Можно добавить:
+
+- Dynamic neighbor detection (spatial hashing)
+- Firing animations (pulse travels along connection)
+- Connection density увеличивается к центру
+
+**Файл:** `src/NeuralConnections.js`
+
+---
+
+### 3. Morphogenetic Field (Phase 2 expansion)
+Из оригинального плана — attractor visualization:
+
+- Невидимые силовые линии становятся видимыми
+- Частицы следуют за полем
+- "Судьба каждой частицы предопределена"
+
+**Сложность:** Средняя. Нужен новый shader effect.
+
+---
+
+### 4. Mobile Optimization
+Проверить и оптимизировать:
+
+- Tier detection accuracy на реальных устройствах
+- 60fps на iPhone SE / low-end Android
+- Touch responsiveness во время онбординга
+
+---
+
+### 5. Settings: Reset Onboarding кнопка
+Сейчас только через `?reset` URL. Добавить в Settings modal:
+
+```
+[Debug Section]
+☐ Reset Onboarding — пересмотреть Anamnesis
+```
+
+**Файлы:** `src/ui/SettingsModal.js`
+
+---
+
+### 6. Platonic Solid Hints (experimental)
+Из оригинального spec — на мгновение показать:
+
+- Икосаэдр во время CRYSTALLIZE
+- Додекаэдр намёком в PROTO
+- "Сакральная геометрия под хаосом"
+
+**Сложность:** Высокая. Нужна wireframe geometry + timing.
+
+---
+
+## Тестирование
+
+```bash
+# Локально
+npm run dev
+http://localhost:5173/?reset
+
+# Мобильный (в той же сети)
+http://192.168.3.63:5173/?reset
+
+# Deploy
+npm run build && npx vercel --prod
+```
+
+---
+
+## Архитектура (финальная)
 
 ```
 src/
 ├── main.js              # Entry, RAF loop, orchestration
 ├── Sphere.js            # Эмоции, координация систем
-├── ParticleSystem.js    # 5000 частиц, assembly, ego death
+├── ParticleSystem.js    # 5000 частиц, assembly, ego death, synesthesia
 ├── Eye.js               # Глаз + firstGaze()
 ├── LivingCore.js        # 3-слойное внутреннее свечение
-├── VoidBackground.js    # NEW: Anamnesis живая тьма
-├── CameraBreathing.js   # NEW: Anamnesis дыхание камеры
+├── VoidBackground.js    # Anamnesis: живая тьма
+├── CameraBreathing.js   # Anamnesis: дыхание камеры
+├── UmbilicalSystem.js   # Anamnesis Tier 2+: пуповины
+├── NeuralConnections.js # Anamnesis Tier 3: синапсы (skeleton)
+├── OnboardingManager.js # Anamnesis state machine (9 states)
 ├── OrganicTicks.js      # Автономные микро-движения
 ├── IdleAgency.js        # Инициатива при бездействии
-├── OnboardingManager.js # Anamnesis state machine (9 states)
-├── AccelerometerManager.js
-├── InputManager.js
-├── MemoryManager.js
-├── HapticManager.js
-├── SampleSoundSystem.js
 ├── utils/
-│   └── GPUTier.js       # NEW: GPU tier detection
+│   └── GPUTier.js       # GPU tier detection
 └── ui/
     └── ...
 ```
-
----
-
-## История последних коммитов
-
-| Коммит | Описание |
-|--------|----------|
-| e8bd8b2 | feat: implement Anamnesis — 9-second consciousness birth |
-| a9fd97b | docs: Anamnesis implementation plan (13 tasks) |
-| 8431d89 | docs: particle choreography design spec |
-| 03f379f | fix: onboarding 10sec + safe-area UI buttons |
 
 ---
 
@@ -117,20 +159,12 @@ app.particleSystem.setAssemblyProgress(1)   // sphere
 // Ego death test
 app.particleSystem.setEgoDeathIntensity(0.8)
 
+// Synesthesia test
+app.particleSystem.setSynesthesiaAmount(0.5)
+
 // Eye first gaze
 app.eye.firstGaze()
 
-// Camera breathing
-app.cameraBreathing.enable()
-app.cameraBreathing.update(Math.PI, 0.5)
-```
-
----
-
-## Build
-
-```bash
-npm run dev              # http://localhost:5173
-npm run dev -- --host    # + мобильный доступ
-npm run build && npx vercel --prod  # Deploy
+// GPU Tier (1-3)
+app.gpuTier
 ```
