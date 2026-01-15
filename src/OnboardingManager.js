@@ -57,6 +57,8 @@ export class OnboardingManager {
         this.cameraBreathing = options.cameraBreathing
         this.umbilicalSystem = options.umbilicalSystem      // Tier 2+
         this.neuralConnections = options.neuralConnections  // Tier 3
+        this.pulseWaves = options.pulseWaves                // Full Living Sphere
+        this.innerSkeleton = options.innerSkeleton          // Full Living Sphere
         this.gpuTier = options.gpuTier || 2
 
         // Anamnesis state
@@ -359,6 +361,47 @@ export class OnboardingManager {
             }
         }
 
+        // ═══════════════════════════════════════════════════════════
+        // FULL LIVING SPHERE: PulseWaves and InnerSkeleton
+        // ═══════════════════════════════════════════════════════════
+        // PulseWaves: Max intensity during onboarding
+        if (this.pulseWaves) {
+            this.pulseWaves.setIntensity(1.0)
+            this.pulseWaves.setGlobalOpacity(Math.min(1, stateTime / 2000))
+            // Trigger dramatic pulse at First Breath
+            if (currentPhase === 'FIRST_BREATH' && !this.stateData.pulseTriggered) {
+                this.stateData.pulseTriggered = true
+                this.pulseWaves.pulse()
+            }
+        }
+
+        // InnerSkeleton: Visible only during PROTO → CRYSTALLIZE
+        if (this.innerSkeleton) {
+            const isSkeletonPhase = currentPhase === 'PROTO' || currentPhase === 'CRYSTALLIZE'
+            this.innerSkeleton.setVisible(isSkeletonPhase)
+
+            if (isSkeletonPhase) {
+                // Fade in during PROTO, max at CRYSTALLIZE
+                let skeletonOpacity = 0
+                if (currentPhase === 'PROTO') {
+                    const protoStart = timing.PROTO.start * 1000
+                    const protoEnd = timing.PROTO.end * 1000
+                    skeletonOpacity = (stateTime - protoStart) / (protoEnd - protoStart)
+                } else if (currentPhase === 'CRYSTALLIZE') {
+                    const crystalStart = timing.CRYSTALLIZE.start * 1000
+                    const crystalEnd = timing.CRYSTALLIZE.end * 1000
+                    const crystalProgress = (stateTime - crystalStart) / (crystalEnd - crystalStart)
+                    // Peak at start, fade out toward end
+                    skeletonOpacity = 1 - crystalProgress * 0.5
+                }
+                this.innerSkeleton.setOpacity(Math.max(0, Math.min(1, skeletonOpacity)))
+                this.innerSkeleton.setPulse(assemblyProgress)
+            }
+
+            // Update skeleton animation
+            this.innerSkeleton.update(delta / 1000, stateTime / 1000, assemblyProgress)
+        }
+
         // Opacity fade-in (starts at FIRST_SPARK)
         if (stateTime > timing.FIRST_SPARK.start * 1000) {
             const fadeProgress = Math.min(1, (stateTime - timing.FIRST_SPARK.start * 1000) / 3000)
@@ -423,6 +466,11 @@ export class OnboardingManager {
         }
         if (this.cameraBreathing) {
             this.cameraBreathing.disable()
+        }
+        // Cleanup Full Living Sphere systems
+        if (this.innerSkeleton) {
+            this.innerSkeleton.setVisible(false)
+            this.innerSkeleton.setOpacity(0)
         }
     }
 

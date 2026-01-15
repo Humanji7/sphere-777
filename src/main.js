@@ -27,6 +27,8 @@ import { VoidBackground } from './VoidBackground.js'
 import { CameraBreathing } from './CameraBreathing.js'
 import { UmbilicalSystem } from './UmbilicalSystem.js'
 import { NeuralConnections } from './NeuralConnections.js'
+import { PulseWaves } from './PulseWaves.js'
+import { InnerSkeleton } from './InnerSkeleton.js'
 import { detectGPUTier } from './utils/GPUTier.js'
 
 /**
@@ -189,6 +191,19 @@ class App {
             this.neuralConnections = new NeuralConnections(this.particleSystem, this.scene)
         }
 
+        // Full Living Sphere systems
+        this.pulseWaves = new PulseWaves(this.particleSystem.baseRadius)
+        if (this.platformConfig.sphereScale !== 1.0) {
+            this.pulseWaves.getMesh().scale.setScalar(this.platformConfig.sphereScale)
+        }
+        this.scene.add(this.pulseWaves.getMesh())
+
+        this.innerSkeleton = new InnerSkeleton(this.particleSystem.baseRadius)
+        if (this.platformConfig.sphereScale !== 1.0) {
+            this.innerSkeleton.getMesh().scale.setScalar(this.platformConfig.sphereScale)
+        }
+        this.scene.add(this.innerSkeleton.getMesh())
+
         // Eye (organic particle-based, with size multiplier)
         this.eye = new Eye(this.particleSystem.baseRadius, this.sizeMultiplier)
         if (this.platformConfig.sphereScale !== 1.0) {
@@ -201,6 +216,7 @@ class App {
         this.sphere.setSizeMultiplier(this.sizeMultiplier)  // Apply responsive sizing
         this.sphere.setEye(this.eye)  // Connect eye to emotional system
         this.sphere.setAccelerometer(this.accelerometer)  // Connect motion input
+        this.sphere.setPulseWaves(this.pulseWaves)  // Connect pulse waves to emotional system
         // this.sphere.setDebug(true)  // Uncomment for debug logging
 
         // Memory Manager (emotional memory / trust system)
@@ -266,6 +282,8 @@ class App {
             cameraBreathing: this.cameraBreathing,    // Anamnesis
             umbilicalSystem: this.umbilicalSystem,    // Anamnesis Tier 2+
             neuralConnections: this.neuralConnections, // Anamnesis Tier 3
+            pulseWaves: this.pulseWaves,              // Full Living Sphere
+            innerSkeleton: this.innerSkeleton,        // Full Living Sphere
             gpuTier: this.gpuTier,                    // Anamnesis
             onComplete: () => this._onOnboardingComplete()
         })
@@ -419,6 +437,14 @@ class App {
             }
             if (this.sphere.osmosisActive) {
                 this.livingCore.onOsmosis(this.sphere.osmosisDepth || 0)
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            // PULSE WAVES: Concentric rings expanding from center
+            // ═══════════════════════════════════════════════════════════
+            if (this.pulseWaves) {
+                this.pulseWaves.update(delta, elapsed, breathPhase)
+                this.pulseWaves.syncRotation(rotation)
             }
 
             // Sync eye rotation with sphere rolling

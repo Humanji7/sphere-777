@@ -333,6 +333,9 @@ export class ParticleSystem {
         uniform float uAssemblyPhase;     // Stage-specific effects
         // Ego Death
         uniform float uEgoDeathIntensity; // 0-1, dissolution chaos
+        // Surface Flow
+        uniform float uFlowSpeed;      // 0-1, animation speed
+        uniform float uFlowAmount;     // 0-0.05, displacement amount
 
         varying float vType;
         varying float vSeed;
@@ -467,6 +470,26 @@ export class ParticleSystem {
               snoise(aOriginalPos * 10.0 + uTime * 5.0 + 200.0) - 0.5
             ) * uEgoDeathIntensity * 0.3;
             pos += chaosOffset;
+          }
+
+          // ═══════════════════════════════════════════════════════════
+          // SURFACE FLOW: Tangential particle drift across surface
+          // "Living current — particles flow like liquid across skin"
+          // ═══════════════════════════════════════════════════════════
+          if (uFlowAmount > 0.0 && aType < 1.5 && aBleedPhase < 0.01) {
+            vec3 normal = normalize(aOriginalPos);
+            // Use Y-axis as reference to compute tangent (handle pole singularity)
+            vec3 refAxis = abs(normal.y) > 0.99 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+            vec3 tangent = normalize(cross(normal, refAxis));
+            vec3 bitangent = normalize(cross(normal, tangent));
+
+            // Two noise samples for 2D flow on sphere surface
+            float flowNoise1 = snoise(aOriginalPos * 2.0 + uTime * uFlowSpeed);
+            float flowNoise2 = snoise(aOriginalPos * 2.0 + uTime * uFlowSpeed + vec3(50.0));
+
+            // Combine tangent and bitangent for organic swirl
+            vec3 flowOffset = (tangent * flowNoise1 + bitangent * flowNoise2 * 0.5) * uFlowAmount * adjustedSensitivity;
+            pos += flowOffset;
           }
 
           // Combined Breathing, Boiling, and Heartbeat
@@ -1051,7 +1074,10 @@ export class ParticleSystem {
         // Ego Death (brief dissolution before crystallization)
         uEgoDeathIntensity: { value: 0 },   // 0-1, bell curve during ego death
         // Synesthesia (Tier 2+ color effect)
-        uSynesthesiaAmount: { value: 0 }    // 0-1, colors as sound frequencies
+        uSynesthesiaAmount: { value: 0 },   // 0-1, colors as sound frequencies
+        // Surface Flow (tangential particle movement)
+        uFlowSpeed: { value: 0.3 },         // 0-1, animation speed
+        uFlowAmount: { value: 0.01 }        // 0-0.05, displacement amount
       },
       vertexShader: this._generateVertexShader(),
       fragmentShader: this._generateFragmentShader(),
@@ -1498,6 +1524,26 @@ export class ParticleSystem {
    */
   setNoiseAmount(amount) {
     this.material.uniforms.uNoiseAmount.value = Math.max(0, amount)
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SURFACE FLOW API (Living current across surface)
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Set surface flow animation speed
+   * @param {number} speed - 0 (frozen) to 1 (fast)
+   */
+  setFlowSpeed(speed) {
+    this.material.uniforms.uFlowSpeed.value = Math.max(0, Math.min(1, speed))
+  }
+
+  /**
+   * Set surface flow displacement amount
+   * @param {number} amount - 0 (none) to 0.05 (dramatic)
+   */
+  setFlowAmount(amount) {
+    this.material.uniforms.uFlowAmount.value = Math.max(0, Math.min(0.05, amount))
   }
 
   /**

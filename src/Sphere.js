@@ -241,6 +241,14 @@ export class Sphere {
     }
 
     /**
+     * Set pulse waves (concentric ring effect)
+     * @param {PulseWaves} pulseWaves - The pulse waves instance
+     */
+    setPulseWaves(pulseWaves) {
+        this.pulseWaves = pulseWaves
+    }
+
+    /**
      * Apply motion-based gesture (from accelerometer)
      * Affects whole sphere: emotion, particles, eye, core
      * @param {string} gesture - shake | jolt
@@ -992,6 +1000,27 @@ export class Sphere {
         const sizeLerpFactor = 1 - Math.exp(-effectiveSmoothSpeed * delta)
         this.currentSize += (targetSize - this.currentSize) * sizeLerpFactor
         this.particles.material.uniforms.uSize.value = this.currentSize
+
+        // ═══════════════════════════════════════════════════════════
+        // SURFACE FLOW: Tangential particle drift intensity
+        // "Living current — intensity reflects emotional state"
+        // ═══════════════════════════════════════════════════════════
+        // Base intensity: 0.3 idle, 0.6 interaction, scales with colorProgress
+        const flowBaseIntensity = isActive ? 0.6 : 0.3
+        const flowIntensity = flowBaseIntensity + this.currentColorProgress * 0.4
+        // Speed: 0.3 base, up to 1.0 at max tension
+        this.particles.setFlowSpeed(0.3 + flowIntensity * 0.7)
+        // Amount: 0.01 base, up to 0.03 at max tension
+        this.particles.setFlowAmount(0.01 + flowIntensity * 0.02)
+
+        // ═══════════════════════════════════════════════════════════
+        // PULSE WAVES: Concentric ring intensity
+        // "Energy radiates outward — intensity reflects emotional state"
+        // ═══════════════════════════════════════════════════════════
+        if (this.pulseWaves) {
+            const pulseIntensity = flowBaseIntensity + this.currentColorProgress * 0.4
+            this.pulseWaves.setIntensity(pulseIntensity)
+        }
 
         // Apply rolling based on input (with trauma-adjusted response)
         if (isActive && this.currentPhase !== PHASE.LISTENING) {
