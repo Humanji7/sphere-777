@@ -1,7 +1,7 @@
-# Handoff: Unity Migration — День 3 Complete
+# Handoff: Unity Migration — День 4 (Visual Improvements)
 
 **Дата:** 2026-01-18
-**Статус:** Базовый прототип работает, визуал требует улучшения
+**Статус:** Bloom + HDR цвета добавлены, требуется проверка визуала
 
 ---
 
@@ -34,6 +34,17 @@
 | Blink | ✅ автоматическое моргание |
 | Scale баг исправлен | ✅ сохраняет initial scale |
 
+### День 4: Visual Improvements ✅
+| Задача | Статус |
+|--------|--------|
+| URP Post-processing Volume | ✅ PostProcessingSetup.cs |
+| Bloom эффект | ✅ threshold=0.8, intensity=2 |
+| Camera post-processing enabled | ✅ |
+| HDR материал для Iris | ✅ IrisSpriteHDR.mat |
+| HDR материал для частиц | ✅ ParticleEmissive.mat |
+| EyeController HDR цвета | ✅ ColorUsage(true, true) |
+| SphereParticleController HDR | ✅ MaterialPropertyBlock |
+
 ---
 
 ## Текущее состояние
@@ -44,36 +55,25 @@
 - Глаз виден (3 слоя: белый, янтарный, чёрный)
 - Зрачок следит за курсором
 - Веко моргает автоматически
+- **NEW:** Bloom post-processing настроен
+- **NEW:** HDR цвета для glow эффекта
 
-### Визуальные проблемы:
-- Глаз выглядит "плоско" — нужны градиенты, glow, soft edges
-- Нет Bloom эффекта
-- Простые круги без шейдеров
-- 2D пока, не 3D
+### Требуется проверка:
+- Визуально проверить Bloom в Game View
+- Настроить интенсивность если нужно
+- При необходимости создать Shader Graph для радиального градиента iris
 
 ---
 
-## Что НЕ сделано из плана
+## Новые файлы
 
-### P0 (День 1-3) — частично
-| Задача | Статус |
-|--------|--------|
-| VFX Graph вместо Particle System | ❌ использовали legacy |
-| Fibonacci distribution | ❌ не реализовано |
-| Build APK | ❌ не тестировали |
+### Скрипты
+- `Assets/Scripts/PostProcessingSetup.cs` — программная настройка Bloom
 
-### P1 (День 4-5) — не начато
-- ❌ LivingCore (Shader Graph, 3 glow layers)
-- ❌ PulseWaves (12 rings)
-- ❌ IdleAgency (mood progression)
-- ❌ OrganicTicks (twitch, stretch, shiver)
-- ❌ BioticNoise в Unity
-
-### P2 (День 6-7) — не начато
-- ❌ Sound System
-- ❌ Haptic feedback
-- ❌ Onboarding sequence
-- ❌ UI (Settings, About)
+### Материалы
+- `Assets/Materials/IrisSpriteHDR.mat` — Sprite-Unlit с HDR цветом
+- `Assets/Materials/ParticleEmissive.mat` — Particles/Unlit с HDR
+- `Assets/Materials/IrisEmissive.mat` — URP/Lit с emission (backup)
 
 ---
 
@@ -83,13 +83,16 @@
 
 **Сцена:** `SampleScene`
 ```
-├── Main Camera
+├── Main Camera (post-processing enabled)
 ├── Global Light 2D
+├── PostProcessing (Volume, PostProcessingSetup) ← NEW
 ├── Sphere (EmotionStateMachine, SphereController)
 ├── SphereParticles (ParticleSystem, SphereParticleController)
+│   └── Material: ParticleEmissive.mat
 ├── Eye (EyeController, EyeSpriteGenerator)
 │   ├── Sclera (SpriteRenderer, sortingOrder 100)
 │   ├── Iris (SpriteRenderer, sortingOrder 101)
+│   │   └── Material: IrisSpriteHDR.mat
 │   ├── Pupil (SpriteRenderer, sortingOrder 102)
 │   └── Lid (SpriteRenderer, sortingOrder 103)
 ├── GameManager (InputHandler, debugMode=true)
@@ -97,73 +100,94 @@
 └── TestSphere (не используется)
 ```
 
-**Скрипты:** `Assets/Scripts/`
-- EmotionStateMachine.cs
-- InputHandler.cs
-- EyeController.cs (исправлен scale баг)
-- EyeSpriteGenerator.cs (новый)
-- SphereController.cs
-- SphereParticleController.cs
+---
+
+## Настройки Bloom
+
+```
+PostProcessingSetup:
+  bloomThreshold: 0.8   # Цвета > 0.8 будут светиться
+  bloomIntensity: 2.0   # Сила свечения
+  bloomScatter: 0.7     # Размер halo
+  debugMode: true
+
+Camera → UniversalAdditionalCameraData:
+  renderPostProcessing: true
+  allowHDR: true
+```
 
 ---
 
 ## Следующие шаги
 
-### Вариант A: Улучшить визуал глаза
+### Вариант A: Shader Graph для Iris (градиент)
+MCP не может создавать Shader Graph ноды напрямую.
+
+**Ручные шаги в Unity:**
+1. Assets → Create → Shader Graph → URP → Sprite Unlit Shader Graph
+2. Сохранить как `Assets/Shaders/IrisGradient.shadergraph`
+3. Добавить ноды:
+   - UV → Polar Coordinates (центрированные)
+   - Gradient (радиальный amber → dark)
+   - Sample Gradient по radius
+   - Multiply с HDR Color (>1 для Bloom)
+   - Output → Fragment Color
+
+4. Создать материал из шейдера
+5. Назначить на Iris через MCP:
 ```
-1. Shader Graph для iris (радиальный градиент)
-2. Glow эффект для pupil
-3. Soft edges для sclera
-4. URP Post-processing (Bloom)
+mcp__mcp-unity__assign_material
+  objectPath: "Eye/Iris"
+  materialPath: "Assets/Materials/IrisGradient.mat"
 ```
 
-### Вариант B: Build APK
+### Вариант B: Настроить текущий Bloom
+Если визуал устраивает, можно настроить параметры:
+```csharp
+// PostProcessingSetup API
+postProcessing.SetBloomIntensity(3f);   // Больше glow
+postProcessing.SetBloomThreshold(0.6f); // Раньше начинает светиться
+postProcessing.SetBloomScatter(0.8f);   // Шире halo
 ```
+
+### Вариант C: Build APK
 1. Player Settings → Android
 2. Build and Run
 3. Тест на устройстве
-```
 
-### Вариант C: P1 Life Systems
-```
-1. LivingCore с Shader Graph
-2. IdleAgency
-3. OrganicTicks
-```
+---
+
+## Известные ограничения
+
+| Проблема | Workaround |
+|----------|------------|
+| MCP не может создавать Shader Graph | Ручное создание + MCP назначает материал |
+| MCP не может сохранять в Play mode | Остановить Play, затем сохранить |
+| Sprite-Unlit не поддерживает emission map | Используем HDR _Color multiply |
 
 ---
 
 ## Как продолжить
 
-### 1. Открыть Unity
+### 1. Проверить визуал
 ```
-Unity Hub → My project
-```
-
-### 2. Запустить MCP Server
-```
-Tools → MCP Unity → Start Server
+Unity → Play → смотреть Game View
+Должен быть виден Bloom на ярких элементах
 ```
 
-### 3. Промпт для Claude (визуал)
+### 2. Остановить и сохранить
+```
+Stop Play → Ctrl+S для сохранения сцены
+```
+
+### 3. Промпт для Claude
 ```
 Продолжаем Unity Migration.
 
 Читай docs/HANDOFF_UNITY_MIGRATION.md
 
-Текущий статус: базовый прототип работает.
-- Частицы дышат и меняют цвет ✅
-- Глаз следит за курсором ✅
-- Визуал "плоский" — нужны улучшения
-
-Задача: улучшить визуал глаза.
-1. Shader Graph для iris — радиальный градиент
-2. Glow эффект для pupil
-3. Soft edges
-4. URP Bloom
-
-Референс: Three.js версия в /Users/admin/projects/sphere-777/
-Запусти npm run dev чтобы увидеть как должно выглядеть.
+Bloom добавлен. Проверь визуал в Unity.
+Если нужно — настрой параметры или создай Shader Graph для iris.
 ```
 
 ---
