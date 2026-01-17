@@ -1,7 +1,7 @@
-# Handoff: Unity Migration — День 2 Complete
+# Handoff: Unity Migration — День 3 Complete
 
-**Дата:** 2026-01-17
-**Статус:** Частицы работают, эмоции не визуализируются
+**Дата:** 2026-01-18
+**Статус:** Базовый прототип работает, визуал требует улучшения
 
 ---
 
@@ -23,27 +23,57 @@
 | Particle System в сцене | ✅ Дышит |
 | Skill unity-sphere-vfx | ✅ Создан |
 
+### День 3: Эмоции + Eye ✅
+| Задача | Статус |
+|--------|--------|
+| Исправлен баг Peace→Tension | ✅ добавлен переход по velocity |
+| Цвет частиц меняется | ✅ Peace→Tension→Bleeding→Trauma |
+| Eye структура создана | ✅ Sclera/Iris/Pupil/Lid |
+| EyeSpriteGenerator.cs | ✅ программные круги |
+| Pupil tracking | ✅ следит за курсором |
+| Blink | ✅ автоматическое моргание |
+| Scale баг исправлен | ✅ сохраняет initial scale |
+
 ---
 
-## Известная проблема: Частицы не меняют цвет
+## Текущее состояние
 
-**Симптомы:**
-- Частицы дышат (радиус пульсирует) ✅
-- Debug info показывает gesture/velocity ✅
-- Логи показывают смену эмоций (Peace ↔ Listening) ✅
-- Цвет частиц НЕ меняется визуально ❌
+### Работает:
+- Частицы дышат (радиус пульсирует)
+- Цвет меняется с эмоциями (синий → розовый → оранжевый)
+- Глаз виден (3 слоя: белый, янтарный, чёрный)
+- Зрачок следит за курсором
+- Веко моргает автоматически
 
-**Причина:**
-Эмоции застревают на Peace/Listening (colorProgress 0.0-0.1). Не достигают Tension/Bleeding.
+### Визуальные проблемы:
+- Глаз выглядит "плоско" — нужны градиенты, glow, soft edges
+- Нет Bloom эффекта
+- Простые круги без шейдеров
+- 2D пока, не 3D
 
-**Что пробовали:**
-- Уменьшили пороги: tensionVelocity 0.03, bleedingVelocity 0.06
-- Всё равно не достаточно
+---
 
-**Что нужно проверить:**
-1. Velocity в InputHandler — возможно нормализация неправильная
-2. EmotionStateMachine логика перехода в Tension
-3. SphereParticleController.UpdateColor() — применяется ли цвет к mainModule
+## Что НЕ сделано из плана
+
+### P0 (День 1-3) — частично
+| Задача | Статус |
+|--------|--------|
+| VFX Graph вместо Particle System | ❌ использовали legacy |
+| Fibonacci distribution | ❌ не реализовано |
+| Build APK | ❌ не тестировали |
+
+### P1 (День 4-5) — не начато
+- ❌ LivingCore (Shader Graph, 3 glow layers)
+- ❌ PulseWaves (12 rings)
+- ❌ IdleAgency (mood progression)
+- ❌ OrganicTicks (twitch, stretch, shiver)
+- ❌ BioticNoise в Unity
+
+### P2 (День 6-7) — не начато
+- ❌ Sound System
+- ❌ Haptic feedback
+- ❌ Onboarding sequence
+- ❌ UI (Settings, About)
 
 ---
 
@@ -57,6 +87,11 @@
 ├── Global Light 2D
 ├── Sphere (EmotionStateMachine, SphereController)
 ├── SphereParticles (ParticleSystem, SphereParticleController)
+├── Eye (EyeController, EyeSpriteGenerator)
+│   ├── Sclera (SpriteRenderer, sortingOrder 100)
+│   ├── Iris (SpriteRenderer, sortingOrder 101)
+│   ├── Pupil (SpriteRenderer, sortingOrder 102)
+│   └── Lid (SpriteRenderer, sortingOrder 103)
 ├── GameManager (InputHandler, debugMode=true)
 ├── SphereVFX (не используется)
 └── TestSphere (не используется)
@@ -65,55 +100,35 @@
 **Скрипты:** `Assets/Scripts/`
 - EmotionStateMachine.cs
 - InputHandler.cs
-- EyeController.cs
+- EyeController.cs (исправлен scale баг)
+- EyeSpriteGenerator.cs (новый)
 - SphereController.cs
 - SphereParticleController.cs
 
 ---
 
-## Skill создан
+## Следующие шаги
 
-**Путь:** `~/.claude/skills/unity-sphere-vfx/`
-
+### Вариант A: Улучшить визуал глаза
 ```
-├── SKILL.md              # Документация MCP + Unity
-├── references/
-│   └── mcp-unity-tools.md
-└── assets/templates/
-    ├── VFXController.cs.template
-    └── ParticleSystemController.cs.template
+1. Shader Graph для iris (радиальный градиент)
+2. Glow эффект для pupil
+3. Soft edges для sclera
+4. URP Post-processing (Bloom)
 ```
 
-**Trigger:** `unity-vfx`, `unity particles`, `mcp unity`
-
-**Ключевые находки:**
-- MCP НЕ может редактировать VFX Graph ноды
-- Particle System (legacy) — полная поддержка
-- VFX Graph на мобильных требует Vulkan
-
----
-
-## Следующие шаги (День 3)
-
-### P0: Исправить визуализацию эмоций
+### Вариант B: Build APK
 ```
-1. Дебаг InputHandler — вывести velocity в консоль
-2. Дебаг EmotionStateMachine — почему не переходит в Tension
-3. Проверить SphereParticleController.UpdateColor()
-4. Тест: форсировать SetColorProgress(0.5) и проверить цвет
+1. Player Settings → Android
+2. Build and Run
+3. Тест на устройстве
 ```
 
-### P1: Eye sprite
+### Вариант C: P1 Life Systems
 ```
-- Создать простой sprite для глаза
-- Pupil tracking
-- Blink
-```
-
-### P2: Build APK
-```
-- Player Settings → Android
-- Build and Run
+1. LivingCore с Shader Graph
+2. IdleAgency
+3. OrganicTicks
 ```
 
 ---
@@ -130,17 +145,25 @@ Unity Hub → My project
 Tools → MCP Unity → Start Server
 ```
 
-### 3. Промпт для Claude
+### 3. Промпт для Claude (визуал)
 ```
-Продолжаем Unity Migration День 3.
+Продолжаем Unity Migration.
 
 Читай docs/HANDOFF_UNITY_MIGRATION.md
 
-Проблема: частицы дышат, но цвет не меняется при движении курсора.
-Эмоции в логах: Peace ↔ Listening (colorProgress 0.0-0.1).
-Не достигают Tension/Bleeding.
+Текущий статус: базовый прототип работает.
+- Частицы дышат и меняют цвет ✅
+- Глаз следит за курсором ✅
+- Визуал "плоский" — нужны улучшения
 
-Задача: дебаг и исправление визуализации эмоций через цвет частиц.
+Задача: улучшить визуал глаза.
+1. Shader Graph для iris — радиальный градиент
+2. Glow эффект для pupil
+3. Soft edges
+4. URP Bloom
+
+Референс: Three.js версия в /Users/admin/projects/sphere-777/
+Запусти npm run dev чтобы увидеть как должно выглядеть.
 ```
 
 ---
