@@ -1,65 +1,119 @@
-# Handoff: Unity Migration — День 1 Complete
+# Handoff: Unity Migration — День 2 Complete
 
-**Дата:** 2026-01-16
-**Статус:** Валидация успешна ✅
+**Дата:** 2026-01-17
+**Статус:** Частицы работают, эмоции не визуализируются
 
 ---
 
 ## Что сделано
 
 ### День 1: Валидация ✅
+- Unity 6.3 LTS установлен
+- MCP Unity подключен
+- 5000 частиц тест: 100-200 FPS
 
+### День 2: Core Systems ✅
 | Задача | Статус |
 |--------|--------|
-| Unity 6.3 LTS установлен | ✅ |
-| MCP Unity подключен | ✅ |
-| Claude ↔ Unity работает | ✅ |
-| 5000 частиц тест | ✅ 100-200 FPS |
-
-### Результат бенчмарка
-
-| Метрика | Three.js + Capacitor | Unity 6 |
-|---------|---------------------|---------|
-| FPS (5000 частиц) | 30-45 | **100-200** |
-| CPU time | ~30ms | **5-10ms** |
-| Улучшение | — | **3-6x** |
+| EmotionStateMachine.cs | ✅ |
+| InputHandler.cs | ✅ |
+| EyeController.cs | ✅ |
+| SphereController.cs | ✅ |
+| SphereParticleController.cs | ✅ |
+| Particle System в сцене | ✅ Дышит |
+| Skill unity-sphere-vfx | ✅ Создан |
 
 ---
 
-## Текущее состояние Unity проекта
+## Известная проблема: Частицы не меняют цвет
+
+**Симптомы:**
+- Частицы дышат (радиус пульсирует) ✅
+- Debug info показывает gesture/velocity ✅
+- Логи показывают смену эмоций (Peace ↔ Listening) ✅
+- Цвет частиц НЕ меняется визуально ❌
+
+**Причина:**
+Эмоции застревают на Peace/Listening (colorProgress 0.0-0.1). Не достигают Tension/Bleeding.
+
+**Что пробовали:**
+- Уменьшили пороги: tensionVelocity 0.03, bleedingVelocity 0.06
+- Всё равно не достаточно
+
+**Что нужно проверить:**
+1. Velocity в InputHandler — возможно нормализация неправильная
+2. EmotionStateMachine логика перехода в Tension
+3. SphereParticleController.UpdateColor() — применяется ли цвет к mainModule
+
+---
+
+## Unity проект
 
 **Путь:** `/Users/admin/projects/My project/`
 
 **Сцена:** `SampleScene`
-- Main Camera
-- Global Light 2D
-- TestSphere
-- Sphere
-- Particle System (5000 частиц, настроен)
+```
+├── Main Camera
+├── Global Light 2D
+├── Sphere (EmotionStateMachine, SphereController)
+├── SphereParticles (ParticleSystem, SphereParticleController)
+├── GameManager (InputHandler, debugMode=true)
+├── SphereVFX (не используется)
+└── TestSphere (не используется)
+```
 
-**MCP Unity:** работает на порту 8090
-
-**Конфиг Claude:** `/Users/admin/projects/sphere-777/.mcp.json`
+**Скрипты:** `Assets/Scripts/`
+- EmotionStateMachine.cs
+- InputHandler.cs
+- EyeController.cs
+- SphereController.cs
+- SphereParticleController.cs
 
 ---
 
-## Следующие шаги (День 2-3)
+## Skill создан
 
-### P0: Core Systems
+**Путь:** `~/.claude/skills/unity-sphere-vfx/`
+
 ```
-□ Particle Sphere (VFX Graph, Fibonacci distribution)
-□ Eye (sprite, pupil tracking, blink)
-□ Emotion FSM (peace → tension → bleeding → trauma)
-□ Touch Input (tap, hold, swipe, pinch)
-□ Build APK → тест на Android
+├── SKILL.md              # Документация MCP + Unity
+├── references/
+│   └── mcp-unity-tools.md
+└── assets/templates/
+    ├── VFXController.cs.template
+    └── ParticleSystemController.cs.template
 ```
 
-### Файлы-референсы из Three.js
+**Trigger:** `unity-vfx`, `unity particles`, `mcp unity`
+
+**Ключевые находки:**
+- MCP НЕ может редактировать VFX Graph ноды
+- Particle System (legacy) — полная поддержка
+- VFX Graph на мобильных требует Vulkan
+
+---
+
+## Следующие шаги (День 3)
+
+### P0: Исправить визуализацию эмоций
 ```
-src/Sphere.js           → EmotionStateMachine.cs
-src/ParticleSystem.js   → VFX Graph
-src/Eye.js              → EyeController.cs
-src/InputManager.js     → InputHandler.cs
+1. Дебаг InputHandler — вывести velocity в консоль
+2. Дебаг EmotionStateMachine — почему не переходит в Tension
+3. Проверить SphereParticleController.UpdateColor()
+4. Тест: форсировать SetColorProgress(0.5) и проверить цвет
+```
+
+### P1: Eye sprite
+```
+- Создать простой sprite для глаза
+- Pupil tracking
+- Blink
+```
+
+### P2: Build APK
+```
+- Player Settings → Android
+- Build and Run
 ```
 
 ---
@@ -68,30 +122,33 @@ src/InputManager.js     → InputHandler.cs
 
 ### 1. Открыть Unity
 ```
-Unity Hub → My project → Open
+Unity Hub → My project
 ```
 
 ### 2. Запустить MCP Server
 ```
-Unity → Tools → MCP Unity → Server Window → Start Server
+Tools → MCP Unity → Start Server
 ```
 
-### 3. Запустить Claude в sphere-777
+### 3. Промпт для Claude
 ```
-cd ~/projects/sphere-777
-claude
+Продолжаем Unity Migration День 3.
+
+Читай docs/HANDOFF_UNITY_MIGRATION.md
+
+Проблема: частицы дышат, но цвет не меняется при движении курсора.
+Эмоции в логах: Peace ↔ Listening (colorProgress 0.0-0.1).
+Не достигают Tension/Bleeding.
+
+Задача: дебаг и исправление визуализации эмоций через цвет частиц.
 ```
 
 ---
 
-## План миграции
+## Three.js версия
 
-**Полный план:** `docs/plans/2026-01-15-unity-migration.md`
+**Статус:** Работает независимо
+**Путь:** `/Users/admin/projects/sphere-777/`
+**Запуск:** `npm run dev`
 
-| День | Задачи |
-|------|--------|
-| 1 | ✅ Валидация |
-| 2-3 | Core: Particles, Eye, FSM, Input |
-| 4-5 | Life: LivingCore, PulseWaves, IdleAgency |
-| 6-7 | Polish: Sound, Haptics, Onboarding |
-| 8-10 | Buffer: bugs, optimization |
+Код Three.js не изменялся, Unity — отдельный проект.
