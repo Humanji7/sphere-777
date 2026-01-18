@@ -1,6 +1,6 @@
 # SPHERE-777: Текущий Статус
 
-**Обновлено:** 2026-01-16
+**Обновлено:** 2026-01-18
 
 > Это единственный living doc. Остальные docs — статичные reference.
 
@@ -31,53 +31,27 @@
 
 ---
 
-## Unity Migration
+## Android Release (Capacitor)
 
-> **Handoff:** `docs/HANDOFF_UNITY_MIGRATION.md`
-> **План:** `docs/plans/2026-01-15-unity-migration.md`
+> **PIVOT:** Unity миграция отменена (2026-01-18). URP 2D Renderer не поддерживает 3D GPU Instancing.
+> **Новый план:** JS/Three.js + Capacitor → Android APK
 
-### День 1: Валидация ✅ COMPLETE
+### Текущий статус
+- ✅ JS версия полностью работает
+- ✅ Capacitor настроен (commit 1404fd4)
+- ✅ APK билдится
 
-| Тест | Three.js | Unity 6 |
-|------|----------|---------|
-| 5000 частиц | 30-45 FPS | **100-200 FPS** |
-| CPU time | ~30ms | **5-10ms** |
-
-**Unity в 3-6x быстрее.**
-
-### День 2-5: 2D Visual ✅ COMPLETE
-- EmotionStateMachine, InputHandler, EyeController
-- SphereParticleController (2D Particle System)
-- Bloom post-processing, HDR colors
-
-### День 6: 3D Sphere System (Geometry Shader) ✅ COMPLETE
-| Компонент | Статус |
-|-----------|--------|
-| SphereMesh.cs | ✅ Fibonacci distribution |
-| SphereBreathShader.shader | ✅ Breathing + HDR + Cursor (НЕ РАБОТАЕТ на мобильных) |
-| SphereMeshController.cs | ✅ Emotion integration |
-
-### День 7: GPU Instanced 3D Sphere ✅ COMPLETE
-| Компонент | Статус |
-|-----------|--------|
-| SphereInstancedShader.shader | ✅ Vertex-only billboard, NO geometry shader |
-| SphereInstancedRenderer.cs | ✅ DrawMeshInstanced batching (5x1023) |
-| Sphere3D_Instanced | ✅ GameObject настроен в сцене |
-
-**Решена проблема:** Geometry shader не работает на OpenGL ES 3.0 / Metal
-**Решение:** GPU Instancing с vertex-only billboarding
-
-### День 8: Bleeding Effect (NEXT)
+### Следующие шаги
 ```
-□ Evaporation shader effect
-□ Scar memory (permanent offsets)
-□ Integration with trauma phase
+□ Проверить текущий APK на устройстве
+□ Оптимизировать производительность (если нужно)
+□ Финальный билд для релиза
 ```
 
-### День 8: Polish
-- Eye integration
-- Mobile optimization test
-- Sound, Haptics
+### Известные оптимизации (если FPS низкий)
+- Уменьшить количество частиц (5000 → 3000)
+- Снизить resolution PulseWaves
+- Отключить Surface Flow на слабых устройствах
 
 ---
 

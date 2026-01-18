@@ -1,5 +1,20 @@
 # Удалённые файлы
 
+## 2026-01-18 — Unity Migration Abandoned
+
+```
+Unity-Project-My-project/ - moved to TRASH/ - Unity migration abandoned, pivot back to JS+Capacitor
+docs/HANDOFF_UNITY_MIGRATION.md - moved to TRASH/ - Unity migration abandoned
+docs/plans/2026-01-15-unity-migration.md - moved to TRASH/ - Unity migration abandoned
+docs/plans/2026-01-18-3d-sphere-instancing.md - moved to TRASH/ - Unity migration abandoned
+docs/plans/2026-01-18-3d-sphere-review.md - moved to TRASH/ - Unity migration abandoned
+```
+
+**Причина:** URP 2D Renderer не поддерживает 3D GPU Instancing шейдеры.
+Слишком много времени на отладку. Возврат к JS + Capacitor для Android.
+
+---
+
 ## 2026-01-15 — Documentation Cleanup
 
 ### Outdated HANDOFF files (work completed)
