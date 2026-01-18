@@ -363,6 +363,7 @@ class App {
         // Initialize idle agency (autonomous behavior when user is inactive)
         this.idleAgency = new IdleAgency(this.sphere, this.organicTicks, this.eye, this.particleSystem)
         this.idleAgency.setInputManager(this.inputManager)
+        this.idleAgency.setSoundManager(this.soundManager)
 
         // Start haptic heartbeat (continuous pulse tied to emotional state)
         this.hapticManager.startHeartbeat('peace')

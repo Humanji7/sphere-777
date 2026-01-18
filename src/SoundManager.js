@@ -46,6 +46,19 @@ export class SoundManager {
         this.osmosisActive = false
 
         // ═══════════════════════════════════════════════════════════
+        // IDLE SWELL (IdleAgency — "она вздыхает когда скучает")
+        // Tonal swells that grow with mood progression
+        // ═══════════════════════════════════════════════════════════
+        // Only attention-seeking gets sound — rare, meaningful "call"
+        this.idleSwellConfig = {
+            'attention-seeking': { interval: [4, 7], gain: 0.20, freq: [250, 400] }
+        }
+        this.isMuted = false
+        this.idleSwellTimer = 0
+        this.idleSwellNextTime = 0
+        this.currentIdleMood = 'calm'
+
+        // ═══════════════════════════════════════════════════════════
         // GESTURE EFFECTS (one-shot sounds)
         // ═══════════════════════════════════════════════════════════
         this.gestureGain = this.audioContext.createGain()
@@ -561,6 +574,86 @@ export class SoundManager {
         }, fadeTime * 1000 + 50)
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // IDLE SWELL: Tonal "sighs" when sphere is bored
+    // "Она не кричит — она вздыхает"
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Update idle swell system — call from IdleAgency
+     * @param {string} mood - calm | curious | restless | attention-seeking
+     * @param {number} delta - Time since last frame
+     */
+    updateIdleSwell(mood, delta) {
+        // Respect mute
+        if (this.isMuted) return
+
+        this.currentIdleMood = mood
+
+        // Only attention-seeking triggers sound
+        const config = this.idleSwellConfig[mood]
+        if (!config) {
+            this.idleSwellTimer = 0
+            this.idleSwellNextTime = 0
+            return
+        }
+
+        // Initialize next time if needed
+        if (this.idleSwellNextTime === 0) {
+            this.idleSwellNextTime = this._randomInRange(config.interval[0], config.interval[1])
+        }
+
+        this.idleSwellTimer += delta
+
+        // Time to play?
+        if (this.idleSwellTimer >= this.idleSwellNextTime) {
+            this._playIdleSwell(config)
+            this.idleSwellTimer = 0
+            // Next interval with ±15% variance
+            const baseInterval = this._randomInRange(config.interval[0], config.interval[1])
+            this.idleSwellNextTime = baseInterval * (0.85 + Math.random() * 0.3)
+        }
+    }
+
+    /**
+     * Play a single idle swell
+     * Envelope: Attack 0.8s → Sustain 0.3s → Release 1.2s
+     */
+    _playIdleSwell(config) {
+        const now = this.audioContext.currentTime
+
+        // Frequency with ±15% variance
+        const baseFreq = this._randomInRange(config.freq[0], config.freq[1])
+        const freq = baseFreq * (0.85 + Math.random() * 0.3)
+
+        // Create oscillator
+        const osc = this.audioContext.createOscillator()
+        osc.type = 'sine'
+        osc.frequency.value = freq
+
+        // Gain envelope
+        const gain = this.audioContext.createGain()
+        gain.gain.setValueAtTime(0, now)
+        gain.gain.linearRampToValueAtTime(config.gain, now + 0.8)       // Attack
+        gain.gain.setValueAtTime(config.gain, now + 1.1)                // Sustain
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 2.3)        // Release
+
+        // Connect
+        osc.connect(gain)
+        gain.connect(this.masterGain)
+
+        // Play
+        osc.start(now)
+        osc.stop(now + 2.5)
+    }
+
+    /**
+     * Helper: random float in range
+     */
+    _randomInRange(min, max) {
+        return min + Math.random() * (max - min)
+    }
+
     /**
      * Set master volume
      * @param {number} volume - 0-1
@@ -573,10 +666,12 @@ export class SoundManager {
      * Mute/unmute
      */
     mute() {
+        this.isMuted = true
         this.masterGain.gain.value = 0
     }
 
     unmute() {
+        this.isMuted = false
         this.masterGain.gain.value = 0.3
     }
 

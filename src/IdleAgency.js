@@ -18,7 +18,8 @@ export class IdleAgency {
         this.organicTicks = organicTicks
         this.eye = eye
         this.particles = particleSystem
-        this.input = null  // Set via setInputManager()
+        this.input = null      // Set via setInputManager()
+        this.sound = null      // Set via setSoundManager()
 
         // ═══════════════════════════════════════════════════════════
         // IDLE STATE
@@ -64,6 +65,14 @@ export class IdleAgency {
     }
 
     /**
+     * Set sound manager for idle swells
+     * @param {SoundManager} soundManager
+     */
+    setSoundManager(soundManager) {
+        this.sound = soundManager
+    }
+
+    /**
      * Main update loop
      * @param {number} delta - Time since last frame
      * @param {number} elapsed - Total elapsed time
@@ -93,6 +102,13 @@ export class IdleAgency {
         // ═══════════════════════════════════════════════════════════
         this.idleTime += delta
         this._updateMood()
+
+        // ═══════════════════════════════════════════════════════════
+        // IDLE SOUNDS — "она вздыхает когда скучает"
+        // ═══════════════════════════════════════════════════════════
+        if (this.sound?.updateIdleSwell) {
+            this.sound.updateIdleSwell(this.mood, delta)
+        }
 
         // ═══════════════════════════════════════════════════════════
         // MOOD-BASED BEHAVIORS
