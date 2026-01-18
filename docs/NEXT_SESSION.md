@@ -45,18 +45,39 @@
 
 **Unity в 3-6x быстрее.**
 
-### День 2-3: Core Systems (NEXT)
+### День 2-5: 2D Visual ✅ COMPLETE
+- EmotionStateMachine, InputHandler, EyeController
+- SphereParticleController (2D Particle System)
+- Bloom post-processing, HDR colors
+
+### День 6: 3D Sphere System (Geometry Shader) ✅ COMPLETE
+| Компонент | Статус |
+|-----------|--------|
+| SphereMesh.cs | ✅ Fibonacci distribution |
+| SphereBreathShader.shader | ✅ Breathing + HDR + Cursor (НЕ РАБОТАЕТ на мобильных) |
+| SphereMeshController.cs | ✅ Emotion integration |
+
+### День 7: GPU Instanced 3D Sphere ✅ COMPLETE
+| Компонент | Статус |
+|-----------|--------|
+| SphereInstancedShader.shader | ✅ Vertex-only billboard, NO geometry shader |
+| SphereInstancedRenderer.cs | ✅ DrawMeshInstanced batching (5x1023) |
+| Sphere3D_Instanced | ✅ GameObject настроен в сцене |
+
+**Решена проблема:** Geometry shader не работает на OpenGL ES 3.0 / Metal
+**Решение:** GPU Instancing с vertex-only billboarding
+
+### День 8: Bleeding Effect (NEXT)
 ```
-□ Particle Sphere (VFX Graph, Fibonacci)
-□ Eye (sprite, pupil tracking, blink)
-□ Emotion FSM
-□ Touch Input
-□ Build APK → тест Android
+□ Evaporation shader effect
+□ Scar memory (permanent offsets)
+□ Integration with trauma phase
 ```
 
-### День 4-7: Life + Polish
-- LivingCore, PulseWaves, IdleAgency, OrganicTicks
-- Sound, Haptics, Onboarding, UI
+### День 8: Polish
+- Eye integration
+- Mobile optimization test
+- Sound, Haptics
 
 ---
 
