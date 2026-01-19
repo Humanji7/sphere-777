@@ -17,6 +17,7 @@ import { HapticManager } from './HapticManager.js'
 import { OrganicTicks } from './OrganicTicks.js'
 import { LivingCore } from './LivingCore.js'
 import { IdleAgency } from './IdleAgency.js'
+import { PersistenceManager } from './PersistenceManager.js'
 import { TransformationManager } from './TransformationManager.js'
 import { BeetleShell } from './shells/BeetleShell.js'
 import { CharacterPanel } from './CharacterPanel.js'
@@ -147,6 +148,9 @@ class App {
     }
 
     _initModules() {
+        // Persistence — session memory (must be first to capture return type)
+        this.persistence = new PersistenceManager()
+
         // Input manager
         this.inputManager = new InputManager(this.canvas)
 
@@ -364,6 +368,7 @@ class App {
         this.idleAgency = new IdleAgency(this.sphere, this.organicTicks, this.eye, this.particleSystem)
         this.idleAgency.setInputManager(this.inputManager)
         this.idleAgency.setSoundManager(this.soundManager)
+        this.idleAgency.setPersistence(this.persistence)
 
         // Start haptic heartbeat (continuous pulse tied to emotional state)
         this.hapticManager.startHeartbeat('peace')
