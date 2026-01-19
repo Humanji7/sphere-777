@@ -20,6 +20,8 @@ export class IdleAgency {
         this.particles = particleSystem
         this.input = null      // Set via setInputManager()
         this.sound = null      // Set via setSoundManager()
+        this.persistence = null  // Set via setPersistence()
+        this.hasPlayedReturnReaction = false
 
         // ═══════════════════════════════════════════════════════════
         // IDLE STATE
@@ -73,6 +75,14 @@ export class IdleAgency {
     }
 
     /**
+     * Set persistence manager for return reactions
+     * @param {PersistenceManager} persistence
+     */
+    setPersistence(persistence) {
+        this.persistence = persistence
+    }
+
+    /**
      * Main update loop
      * @param {number} delta - Time since last frame
      * @param {number} elapsed - Total elapsed time
@@ -87,6 +97,11 @@ export class IdleAgency {
         // ACTIVITY DETECTION
         // ═══════════════════════════════════════════════════════════
         if (isUserActive) {
+            // Play return reaction on first interaction
+            if (!this.hasPlayedReturnReaction) {
+                this._playReturnReaction()
+            }
+
             // User touched — instant reset!
             if (this.idleTime > 0) {
                 this._onUserReturn()
@@ -173,6 +188,44 @@ export class IdleAgency {
 
         // Reset flash
         this.flashIntensity = 0
+    }
+
+    /**
+     * Play initial reaction based on how long user was away
+     * Called once at app start after first user interaction
+     */
+    _playReturnReaction() {
+        if (this.hasPlayedReturnReaction || !this.persistence) return
+        this.hasPlayedReturnReaction = true
+
+        const returnType = this.persistence.getReturnType()
+
+        switch (returnType) {
+            case 'happy':
+                // Quick return — excited bounce + flash
+                this.flashIntensity = 0.8
+                this.bouncePhase = 0
+                this._setMood('attention-seeking')  // Brief excitement
+                setTimeout(() => this._setMood('calm'), 2000)
+                break
+
+            case 'sad':
+                // Long absence — slow, subdued start
+                if (this.particles?.mesh) {
+                    this.particles.mesh.position.z = this.baseSphereZ - 0.1  // Slight droop
+                }
+                // Will naturally recover through normal behavior
+                break
+
+            case 'first':
+                // First visit — handled by OnboardingManager
+                break
+
+            case 'neutral':
+            default:
+                // Normal return — no special reaction
+                break
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
