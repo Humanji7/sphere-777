@@ -8,10 +8,11 @@
 
 ## Последний коммит
 
-**feat: idle agency sounds** (1e64f0a)
-- Сфера "вздыхает" на attention-seeking (~6 сек бездействия)
-- Тональный swell 250-400Hz, редкий и значимый
-- Уважает mute
+**feat: Persistence** (c5349ad)
+- Сфера помнит когда ты был в последний раз
+- Радостная реакция при быстром возвращении (<1 час): bounce + flash
+- Грустная реакция при долгом отсутствии (>24 часа): droop
+- `PersistenceManager.js` — localStorage + error handling
 
 ---
 
@@ -54,12 +55,11 @@
 - ✅ Capacitor настроен
 - ✅ APK билдится
 - ✅ Idle sounds работают
+- ✅ Persistence работает
 
 ---
 
 ## Следующие шаги — "Реальный питомец"
-
-Направления для приближения к ощущению живого существа (без Unity):
 
 ### 1. Persistence (память между сессиями) ✅
 ```
@@ -100,20 +100,33 @@
 
 ## Рекомендация для следующей сессии
 
-**Persistence** — самый impactful для ощущения "питомца".
-Одна фича: сфера помнит когда ты был в последний раз.
+**Needs System** — следующий шаг к "питомцу".
 
 ```javascript
-// Пример
-const lastVisit = localStorage.getItem('sphere_last_visit')
-const hoursSince = (Date.now() - lastVisit) / 3600000
+// Концепт
+class NeedsSystem {
+    attention = 1.0  // Падает со временем
 
-if (hoursSince > 24) {
-    // "Где ты был?" — грустная анимация
-} else if (hoursSince < 1) {
-    // "Ты вернулся!" — радостная
+    update(delta, isInteracting) {
+        if (isInteracting) {
+            this.attention = Math.min(1, this.attention + delta * 0.1)
+        } else {
+            this.attention = Math.max(0, this.attention - delta * 0.01)
+        }
+    }
+
+    // Низкий attention → IdleAgency становится настойчивее
 }
 ```
+
+Альтернатива: **Sound Polish** — добавить звук радости при возвращении (happy return).
+
+---
+
+## Product Backlog
+
+См. `docs/BACKLOG.md` — продуктовые идеи:
+- **Event Creatures** — промо-существа для мероприятий (B2B)
 
 ---
 
@@ -125,6 +138,10 @@ npm run dev -- --host
 # Desktop: http://localhost:5173
 # Mobile:  http://<your-ip>:5173
 # Reset:   ?reset
+
+# Тест Persistence:
+# DevTools → localStorage.setItem('sphere_last_visit', Date.now() - 172800000)
+# Reload → touch sphere → sad droop
 ```
 
 ---
@@ -136,9 +153,10 @@ src/
 ├── main.js              # Entry, RAF loop
 ├── Sphere.js            # Эмоции, координация
 ├── ParticleSystem.js    # GPU, Surface Flow
+├── PersistenceManager.js # Память между сессиями (NEW)
 ├── SoundManager.js      # Процедурный звук + idle swell
 ├── SampleSoundSystem.js # Sample-based layers
-├── IdleAgency.js        # Инициатива при бездействии
+├── IdleAgency.js        # Инициатива при бездействии + return reactions
 ├── LivingCore.js        # 3-слойное свечение
 ├── PulseWaves.js        # Кольца
 └── ...
