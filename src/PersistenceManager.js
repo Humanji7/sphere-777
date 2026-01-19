@@ -18,16 +18,25 @@ export class PersistenceManager {
         // Save current visit on unload
         window.addEventListener('beforeunload', () => this._save())
         // Also save periodically (mobile doesn't always fire beforeunload)
-        setInterval(() => this._save(), 30000)
+        this.saveIntervalId = setInterval(() => this._save(), 30000)
     }
 
     _load() {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        return stored ? parseInt(stored, 10) : null
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY)
+            return stored ? parseInt(stored, 10) : null
+        } catch (e) {
+            // localStorage access denied (incognito, quota exceeded, Capacitor sandbox)
+            return null
+        }
     }
 
     _save() {
-        localStorage.setItem(STORAGE_KEY, Date.now().toString())
+        try {
+            localStorage.setItem(STORAGE_KEY, Date.now().toString())
+        } catch (e) {
+            // localStorage write denied
+        }
     }
 
     _calculateHoursSince() {
@@ -55,5 +64,10 @@ export class PersistenceManager {
     /** @returns {boolean} */
     isFirstVisit() {
         return this.returnType === 'first'
+    }
+
+    /** Cleanup interval on dispose */
+    dispose() {
+        clearInterval(this.saveIntervalId)
     }
 }
